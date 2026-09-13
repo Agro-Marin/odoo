@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useBus } from "@web/core/utils/hooks";
+
+const log = makeLogger("website.builder.option.emphasize_animated_text");
 
 export class EmphasizeAnimatedText extends Component {
     static template = "website.EmphasizeAnimatedText";
@@ -9,6 +13,7 @@ export class EmphasizeAnimatedText extends Component {
     static props = [];
 
     setup() {
+        useLifecycleLog(log);
         this.state = useState({
             animatedTextEmphasized: this.isAnimatedTextEmphasized(),
             hasAnimatedText: this.hasAnimatedText(),
@@ -23,6 +28,11 @@ export class EmphasizeAnimatedText extends Component {
             this.env.editor.document.body.classList.toggle(
                 "o_animated_text_emphasized",
             );
+        log.logic("EmphasizeAnimatedText toggle", () => ({
+            emphasized: this.env.editor.document.body.classList.contains(
+                "o_animated_text_emphasized",
+            ),
+        }));
     }
 
     isAnimatedTextEmphasized() {

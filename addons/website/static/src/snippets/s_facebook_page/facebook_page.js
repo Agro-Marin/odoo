@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { pick } from "@web/core/utils/collections/objects";
 import { clamp } from "@web/core/utils/format/numbers";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_facebook_page");
 
 export class FacebookPage extends Interaction {
     static selector = ".o_facebook_page";
@@ -20,6 +23,7 @@ export class FacebookPage extends Interaction {
             "hide_cover",
         );
         if (!params.href) {
+            log.logic("setup: no href, nothing to render");
             return;
         }
         if (params.id) {
@@ -33,8 +37,12 @@ export class FacebookPage extends Interaction {
             this.debounced(this.renderIframe.bind(this, params), 100),
         );
         this.resizeObserver.observe(this.el.parentElement);
+        log.lifecycle("setup: resize observer attached", () => ({
+            href: params.href,
+        }));
         this.registerCleanup(() => {
             this.resizeObserver.disconnect();
+            log.lifecycle("cleanup: resize observer disconnected");
             this.el.replaceChildren();
         });
     }
@@ -49,6 +57,10 @@ export class FacebookPage extends Interaction {
             500,
         );
         if (this.previousWidth !== params.width) {
+            log.logic("renderIframe: width changed, rebuilding iframe", () => ({
+                previous: this.previousWidth,
+                width: params.width,
+            }));
             this.previousWidth = params.width;
             const searchParams = new URLSearchParams(params);
 

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.dropdown.edit");
 
 export class DropdownEdit extends Interaction {
     static selector = "[data-bs-toggle=dropdown]";
@@ -14,6 +17,12 @@ export class DropdownEdit extends Interaction {
                         ?.querySelector(".dropdown-menu")
                         ?.contains(selection.anchorNode)
                 ) {
+                    log.logic(
+                        "DropdownEdit hidden: clear selection inside menu",
+                        () => ({
+                            toggle: this.el.className,
+                        }),
+                    );
                     selection.empty();
                 }
             },

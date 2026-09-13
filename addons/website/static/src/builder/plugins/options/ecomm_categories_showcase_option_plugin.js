@@ -8,7 +8,10 @@ import {
 } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.ecomm_categories_showcase_option");
 
 export class EcommCategoriesShowcaseOption extends BaseOptionComponent {
     static template = "website.EcommCategoriesShowcaseOption";
@@ -91,6 +94,7 @@ class BlockCountAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (!wrapper) {
+            log.logic("BlockCountAction apply skipped: no wrapper");
             return;
         }
 
@@ -100,10 +104,18 @@ class BlockCountAction extends BuilderAction {
             count < EcommCategoriesShowcaseOptionPlugin.MIN_BLOCK_COUNT ||
             count > EcommCategoriesShowcaseOptionPlugin.MAX_BLOCK_COUNT
         ) {
+            log.logic("BlockCountAction apply skipped: count out of range", () => ({
+                value,
+                count,
+            }));
             return;
         }
 
         let blocks = wrapper.querySelectorAll(".s_ecomm_categories_showcase_block");
+        log.pipeline("BlockCountAction apply", () => ({
+            from: blocks.length,
+            to: count,
+        }));
 
         while (blocks.length > count) {
             const blockToRemove = blocks[blocks.length - 1];
@@ -151,6 +163,7 @@ class SpacingToggleAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (!wrapper) {
+            log.logic("SpacingToggleAction apply skipped: no wrapper");
             return;
         }
 
@@ -162,6 +175,10 @@ class SpacingToggleAction extends BuilderAction {
         const newRoundness = hasGap
             ? EcommCategoriesShowcaseOptionPlugin.NO_ROUNDNESS
             : EcommCategoriesShowcaseOptionPlugin.DEFAULT_ROUNDNESS;
+        log.logic("SpacingToggleAction apply", () => ({
+            hadGap: hasGap,
+            newRoundness,
+        }));
         EcommCategoriesShowcaseOptionPlugin._updateBlocksRoundness(
             editingElement,
             newRoundness,
@@ -173,6 +190,7 @@ class SpacingToggleAction extends BuilderAction {
             ".s_ecomm_categories_showcase_wrapper",
         );
         if (wrapper) {
+            log.pipeline("SpacingToggleAction clean");
             wrapper.classList.remove(EcommCategoriesShowcaseOptionPlugin.GAP_CLASS);
             EcommCategoriesShowcaseOptionPlugin._updateBlocksRoundness(
                 editingElement,

@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { cookie } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getTabableElements } from "@web/core/utils/dom/ui";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { SIZES, utils as uiUtils } from "@web/ui/viewport";
+
+const log = makeLogger("website.interaction.popup");
 
 export class Popup extends Interaction {
     static selector = ".s_popup:not(#website_cookies_bar)";
@@ -29,6 +32,7 @@ export class Popup extends Interaction {
     };
 
     setup() {
+        log.lifecycle("Popup setup", () => ({ id: this.el.id }));
         this.cookieValue = true;
         this.modalEl = this.el.querySelector(".modal");
         /** @type {import("bootstrap").Modal} */
@@ -44,11 +48,19 @@ export class Popup extends Interaction {
             this.showModalBtnEl = document.querySelector(
                 `[href="#${this.modalShownOnClickEl.id}"]`,
             );
+            log.logic("Popup setup: onClick display", () => ({
+                modalId: this.modalShownOnClickEl.id,
+                hasShowBtn: !!this.showModalBtnEl,
+            }));
             this.showPopupOnClick();
             return;
         }
 
         this.popupAlreadyShown = !!cookie.get(this.el.id);
+        log.logic("Popup setup: cookie", () => ({
+            id: this.el.id,
+            popupAlreadyShown: this.popupAlreadyShown,
+        }));
     }
 
     start() {
@@ -65,6 +77,13 @@ export class Popup extends Interaction {
                 deviceInvisible
             );
         });
+        log.pipeline("Popup start: bind decision", () => ({
+            id: this.el.id,
+            isMobile,
+            emptyPopup,
+            popupAlreadyShown: this.popupAlreadyShown,
+            bind: !this.popupAlreadyShown && !emptyPopup,
+        }));
         if (!this.popupAlreadyShown && !emptyPopup) {
             this.bindPopup();
         }
@@ -81,6 +100,12 @@ export class Popup extends Interaction {
             }
         }
 
+        log.pipeline("Popup bindPopup: trigger", () => ({
+            id: this.el.id,
+            configuredDisplay: this.modalEl.dataset.display,
+            display,
+            delay,
+        }));
         if (display === "afterDelay") {
             this.waitForTimeout(this.showPopup, delay);
         } else if (display === "mouseExit") {
@@ -93,13 +118,19 @@ export class Popup extends Interaction {
     }
 
     hidePopup() {
+        log.lifecycle("Popup hide", () => ({ id: this.el.id }));
         this.bsModal.hide();
     }
 
     showPopup() {
         if (this.popupAlreadyShown || !this.canShowPopup()) {
+            log.logic("Popup showPopup: skipped", () => ({
+                id: this.el.id,
+                popupAlreadyShown: this.popupAlreadyShown,
+            }));
             return;
         }
+        log.lifecycle("Popup show", () => ({ id: this.el.id }));
         this.bsModal.show();
         this.registerCleanup(() => {
             this.modalEl.classList.remove("show");
@@ -114,6 +145,7 @@ export class Popup extends Interaction {
         if (hash && hash.substring(1) === this.modalShownOnClickEl.id) {
             const urlWithoutHash = browser.location.href.replace(hash, "");
             browser.history.replaceState(null, null, urlWithoutHash);
+            log.logic("Popup showPopupOnClick: hash matched", () => ({ hash }));
             this.showPopup();
         }
     }
@@ -146,6 +178,10 @@ export class Popup extends Interaction {
             this.el.focus();
         }
         if (this.el.querySelector(".s_popup_no_backdrop")) {
+            log.logic("Popup trapFocus: no backdrop, focus restore only", () => ({
+                id: this.el.id,
+                tabable: tabableEls.length,
+            }));
             this.addListener(
                 this.el,
                 "hide.bs.modal",
@@ -203,6 +239,12 @@ export class Popup extends Interaction {
         const nbDays = this.modalEl.dataset.consentsDuration;
         cookie.set(this.el.id, this.cookieValue, nbDays * 24 * 60 * 60, "required");
         this.popupAlreadyShown = !this.modalShownOnClickEl;
+        log.logic("Popup onHideModal: cookie set", () => ({
+            id: this.el.id,
+            cookieValue: this.cookieValue,
+            nbDays,
+            popupAlreadyShown: this.popupAlreadyShown,
+        }));
     }
 
     /**

@@ -1,8 +1,12 @@
 /** @odoo-module native */
 import { Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { useChildRef } from "@web/core/utils/hooks";
 import { AutoCompleteWithPages } from "@website/components/autocomplete_with_pages/autocomplete_with_pages";
+
+const log = makeLogger("website.component.url_autocomplete");
 
 export class UrlAutoComplete extends Component {
     static props = {
@@ -14,6 +18,7 @@ export class UrlAutoComplete extends Component {
     static components = { AutoCompleteWithPages };
 
     setup() {
+        useLifecycleLog(log);
         this.inputRef = useChildRef();
     }
 
@@ -45,23 +50,29 @@ export class UrlAutoComplete extends Component {
                     });
 
                     if (term[0] === "#") {
+                        const endAnchors = log.perf("loadAnchors", { term });
                         const anchors = await this.props.loadAnchors(
                             term,
                             this.props.options && this.props.options.body,
                         );
+                        endAnchors(() => ({ anchors: anchors.length }));
                         return anchors.map((anchor) =>
                             makeItem({ label: anchor, value: anchor }),
                         );
                     } else if (term.startsWith("http") || term.length === 0) {
+                        log.logic("suggest skip: absolute or empty term", { term });
                         return [];
                     }
                     if (this.props.options.isDestroyed?.()) {
+                        log.logic("suggest skip: autocomplete destroyed");
                         return [];
                     }
+                    const endSuggest = log.perf("get_suggested_links", { term });
                     const res = await rpc("/website/get_suggested_links", {
                         needle: term,
                         limit: 15,
                     });
+                    endSuggest();
                     const choices = [];
                     for (const page of res.matching_pages) {
                         choices.push(makeItem(page));
@@ -78,6 +89,12 @@ export class UrlAutoComplete extends Component {
                             }
                         }
                     }
+                    log.pipeline("suggested links", () => ({
+                        term,
+                        pages: res.matching_pages.length,
+                        groups: res.others.length,
+                        choices: choices.length,
+                    }));
                     return choices;
                 },
             },
@@ -85,6 +102,7 @@ export class UrlAutoComplete extends Component {
     }
 
     onSelect(value) {
+        log.logic("onSelect", { value });
         this.inputRef.value = value;
         this.props.targetDropdown.value = value;
         this.props.options.urlChosen?.();

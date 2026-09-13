@@ -1,10 +1,16 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { ImageShapeHoverEffect } from "@website/interactions/image_shape_hover_effect";
+
+const log = makeLogger("website.interaction.image_shape_hover_effect.edit");
 
 const ImageShapeHoverEffectEdit = (I) =>
     class extends I {
         destroy() {
+            log.lifecycle("ImageShapeHoverEffectEdit destroy", () => ({
+                restoreOriginal: this.el.src === this.hoveringImgSrc,
+            }));
             if (this.el.src === this.hoveringImgSrc) {
                 this.el.src = this.originalImgSrc;
             }

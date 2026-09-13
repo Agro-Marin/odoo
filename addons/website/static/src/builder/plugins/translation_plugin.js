@@ -2,10 +2,13 @@
 import { Plugin } from "@html_editor/plugin";
 import { makeContentsInline, unwrapContents } from "@html_editor/utils/dom";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 
 import { AttributeTranslateDialog } from "../translation_components/attributeTranslateDialog.js";
 import { SelectTranslateDialog } from "../translation_components/selectTranslateDialog.js";
+
+const log = makeLogger("website.builder.translation.translation_plugin");
 
 /**
  * @typedef {((editableEls: HTMLElement[]) => void)[]} mark_translatable_nodes
@@ -54,6 +57,9 @@ export class TranslationPlugin extends Plugin {
         clean_for_save_handlers: this.cleanForSave.bind(this),
         get_dirty_els: this.getDirtyTranslations.bind(this),
         after_setup_editor_handlers: () => {
+            const endSetupScan = log.perf(
+                "after_setup_editor mark editable attributes",
+            );
             const translationSavableEls = getTranslationAttributeEls(
                 this.services.website.pageDocument,
             );
@@ -71,6 +77,10 @@ export class TranslationPlugin extends Plugin {
                     editableEl.classList.remove("o_editable", "o_editable_attribute");
                 }
             }
+            endSetupScan(() => ({
+                savableAttributes: translationSavableEls.length,
+                editables: editableEls.length,
+            }));
             return true;
         },
         start_edition_handlers: withSequence(5, () => {
@@ -78,6 +88,9 @@ export class TranslationPlugin extends Plugin {
         }),
         system_classes: ["o_editable_attribute"],
         before_insert_processors: withSequence(20, (container) => {
+            log.pipeline("before_insert_processors: inline and unwrap", () => ({
+                children: container.childElementCount,
+            }));
             makeContentsInline(container);
             for (const el of container.querySelectorAll(this.nonTranslatedSelector)) {
                 unwrapContents(el);
@@ -93,13 +106,24 @@ export class TranslationPlugin extends Plugin {
         this.nonTranslatedSelector =
             `:not(${this.config.translatedElements.join(", ")})` +
             `:not(.o_translate_inline)`;
+        log.lifecycle("setup", () => ({
+            translatedElements: this.config.translatedElements.length,
+        }));
     }
 
     prepareTranslation() {
+        const endPrepare = log.perf("prepareTranslation");
         this.editableEls = findOEditable(this.editable);
+        log.pipeline("prepareTranslation: found editables", () => ({
+            editables: this.editableEls.length,
+        }));
         this.buildTranslationInfoMap(this.editableEls);
         this.handleSelectTranslation(this.editableEls);
         this.markTranslatableNodes();
+        log.pipeline("prepareTranslation: translation info built", () => ({
+            translated: this.elToTranslationInfoMap.size,
+            selectOptions: this.translateSelectEls.length,
+        }));
         for (const [translatedEl] of this.elToTranslationInfoMap) {
             if (
                 translatedEl.matches("input[type=hidden].o_translatable_input_hidden")
@@ -122,11 +146,13 @@ export class TranslationPlugin extends Plugin {
 
         const showNotification = (ev) => {
             if (ev.__shownNotification) {
+                log.logic("showNotification: already shown for this event");
                 return;
             }
             ev.__shownNotification = true;
             let message = _t("This translation is not editable.");
             if (ev.target.closest(".s_table_of_content_navbar_wrap")) {
+                log.logic("showNotification: table of content navbar");
                 message = _t(
                     "Translate header in the text. Menu is generated automatically.",
                 );
@@ -145,6 +171,10 @@ export class TranslationPlugin extends Plugin {
         for (const savableInsideNotEditableEl of savableInsideNotEditableEls) {
             this.addDomListener(savableInsideNotEditableEl, "click", showNotification);
         }
+        log.pipeline("prepareTranslation: listeners attached", () => ({
+            menus: menuEls.length,
+            savableInsideNotEditable: savableInsideNotEditableEls.length,
+        }));
         this.originalElToTranslationInfoMap = new Map();
         for (const [translateEl, translationInfo] of this.elToTranslationInfoMap) {
             this.originalElToTranslationInfoMap.set(
@@ -152,6 +182,9 @@ export class TranslationPlugin extends Plugin {
                 JSON.parse(JSON.stringify(translationInfo)),
             );
         }
+        endPrepare(() => ({
+            snapshot: this.originalElToTranslationInfoMap.size,
+        }));
     }
 
     /**
@@ -206,6 +239,11 @@ export class TranslationPlugin extends Plugin {
             textEditEl.classList.add("o_translatable_text");
             textEditEl.classList.remove("o_text_content_invisible");
         }
+        log.pipeline("buildTranslationInfoMap", () => ({
+            editables: editableEls.length,
+            textareas: textEditEls.length,
+            translated: this.elToTranslationInfoMap.size,
+        }));
     }
 
     handleSelectTranslation(editableEls) {
@@ -227,6 +265,10 @@ export class TranslationPlugin extends Plugin {
             }
             selectEl.before(selectTranslationEl);
         }
+        log.pipeline("handleSelectTranslation", () => ({
+            selects: selectEls.length,
+            options: this.translateSelectEls.length,
+        }));
     }
 
     handleToC(translateEl) {
@@ -240,6 +282,9 @@ export class TranslationPlugin extends Plugin {
                     translateEl.dataset.oeTranslationSourceSha !==
                     headerEl.dataset.oeTranslationSourceSha
                 ) {
+                    log.logic("handleToC: header sha differs, keep save sha", () => ({
+                        href,
+                    }));
                     translateEl.dataset.oeTranslationSaveSha =
                         translateEl.dataset.oeTranslationSourceSha;
                     translateEl.dataset.oeTranslationSourceSha =
@@ -263,6 +308,9 @@ export class TranslationPlugin extends Plugin {
             this.addDomListener(translateEl, "click", (ev) => {
                 const translateEl = ev.target;
                 const elToTranslationInfoMap = this.elToTranslationInfoMap;
+                log.lifecycle("AttributeTranslateDialog open", () => ({
+                    tagName: translateEl.tagName,
+                }));
                 this.dialogService.add(AttributeTranslateDialog, {
                     node: translateEl,
                     elToTranslationInfoMap: elToTranslationInfoMap,
@@ -274,12 +322,18 @@ export class TranslationPlugin extends Plugin {
         for (const translateSelectEl of this.translateSelectEls) {
             this.addDomListener(translateSelectEl, "click", (ev) => {
                 const translateSelectEl = ev.target;
+                log.lifecycle("SelectTranslateDialog open");
                 this.dialogService.add(SelectTranslateDialog, {
                     node: translateSelectEl,
                     addStep: this.dependencies.history.addStep,
                 });
             });
         }
+        log.pipeline("dispatch mark_translatable_nodes", () => ({
+            translated: this.elToTranslationInfoMap.size,
+            selectOptions: this.translateSelectEls.length,
+            editables: this.editableEls.length,
+        }));
         this.dispatchTo("mark_translatable_nodes", this.editableEls);
     }
 
@@ -290,6 +344,7 @@ export class TranslationPlugin extends Plugin {
             "[data-oe-translation-source-sha]",
         );
         if (!translationEl) {
+            log.logic("updateTranslationMap: no translation span", { attrName });
             return;
         }
         if (!this.elToTranslationInfoMap.get(translateEl)) {
@@ -322,6 +377,10 @@ export class TranslationPlugin extends Plugin {
                 }
             }
         }
+        log.pipeline("getDirtyTranslations", () => ({
+            tracked: this.elToTranslationInfoMap.size,
+            dirty: dirtyEls.length,
+        }));
         return dirtyEls;
     }
 
@@ -335,6 +394,10 @@ export class TranslationPlugin extends Plugin {
             const translatedOptions = optionsEl.children;
             const selectOptions =
                 selectEl.tagName === "SELECT" ? [...selectEl.options] : [];
+            log.logic("cleanForSave: restore translated select options", () => ({
+                selectOptions: selectOptions.length,
+                translatedOptions: translatedOptions.length,
+            }));
             if (selectOptions.length === translatedOptions.length) {
                 selectOptions.map((option, i) => {
                     option.text = translatedOptions[i].textContent;
@@ -343,6 +406,7 @@ export class TranslationPlugin extends Plugin {
             optionsEl.remove();
         }
         if (root.dataset.oeTranslationSaveSha) {
+            log.logic("cleanForSave: restore source sha from save sha");
             root.dataset.oeTranslationSourceSha = root.dataset.oeTranslationSaveSha;
             delete root.dataset.oeTranslationSaveSha;
         }

@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { renderToElement } from "@web/core/utils/render";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_image_gallery");
 
 export class Gallery extends Interaction {
     static selector = ".s_image_gallery:not(.o_slideshow)";
@@ -26,6 +29,10 @@ export class Gallery extends Interaction {
     onClickImg(ev) {
         const clickedEl = ev.currentTarget;
         if (this.modalEl || clickedEl.matches("a > img")) {
+            log.logic("onClickImg: ignored", () => ({
+                modalOpen: !!this.modalEl,
+                linkedImage: clickedEl.matches("a > img"),
+            }));
             return;
         }
 
@@ -54,6 +61,11 @@ export class Gallery extends Interaction {
                 ? "website.gallery.s_image_gallery_mirror.lightbox"
                 : "website.gallery.slideshow.lightbox";
 
+        const endRender = log.perf("onClickImg render lightbox", () => ({
+            template: lightboxTemplate,
+            images: imageEls.length,
+            index: currentImageIndex,
+        }));
         this.modalEl = renderToElement(lightboxTemplate, {
             images: imageEls,
             index: currentImageIndex,
@@ -62,6 +74,7 @@ export class Gallery extends Interaction {
             ride: !milliseconds ? "false" : "carousel",
             id: uniqueId("slideshow_"),
         });
+        endRender();
 
         this.onModalKeydownBound = this.onModalKeydown.bind(this);
 
@@ -76,6 +89,7 @@ export class Gallery extends Interaction {
             modalBS.dispose();
             this.modalEl.remove();
             this.modalEl = undefined;
+            log.lifecycle("lightbox hidden and disposed");
         });
 
         this.modalEl.addEventListener(
@@ -86,6 +100,7 @@ export class Gallery extends Interaction {
                 );
                 this.services["public.interactions"].startInteractions(slideshowEl);
                 this.modalEl.addEventListener("keydown", this.onModalKeydownBound);
+                log.lifecycle("lightbox shown, slideshow interactions started");
             },
             { once: true },
         );
@@ -93,10 +108,14 @@ export class Gallery extends Interaction {
         this.insert(this.modalEl, document.body);
         const modalBS = new Modal(this.modalEl, { keyboard: true, backdrop: true });
         modalBS.show();
+        log.lifecycle("lightbox open requested", () => ({
+            interval: milliseconds,
+        }));
     }
 
     destroy() {
         if (this.modalEl) {
+            log.lifecycle("destroy: disposing open lightbox");
             Modal.getInstance(this.modalEl)?.dispose();
         }
     }

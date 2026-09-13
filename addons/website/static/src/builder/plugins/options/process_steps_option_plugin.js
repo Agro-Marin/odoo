@@ -5,12 +5,15 @@ import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils"
 import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { CONTAINER_WIDTH } from "@website/builder/option_sequence";
 
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
 import { connectorOptionParams, ProcessStepsOption } from "./process_steps_option.js";
+
+const log = makeLogger("website.builder.plugin.process_steps_option");
 
 export class WebsiteBackgroundProcessStepOption extends BaseWebsiteBackgroundOption {
     static selector = ".s_process_step .s_process_step_number";
@@ -60,10 +63,12 @@ export class ChangeConnectorAction extends ClassAction {
                 ".s_process_steps_arrow_head",
             );
             if (!arrowHeadEl.id) {
+                log.logic("ChangeConnectorAction assign arrow head id");
                 arrowHeadEl.id = uniqueId("s_process_steps_arrow_head");
             }
             markerEnd = `url(#${arrowHeadEl.id})`;
         }
+        log.pipeline("ChangeConnectorAction apply", () => ({ className, markerEnd }));
         editingElement
             .querySelectorAll(".s_process_step_connector path")
             .forEach((path) => path.setAttribute("marker-end", markerEnd));
@@ -76,6 +81,7 @@ export class ChangeArrowColorAction extends BuilderAction {
         const arrowHeadEl = editingElement
             .closest(".s_process_steps")
             .querySelector(".s_process_steps_arrow_head");
+        log.pipeline("ChangeArrowColorAction apply", () => ({ colorValue }));
         arrowHeadEl.querySelector("path").style.fill = colorValue;
     }
 }
@@ -99,6 +105,10 @@ function reloadConnectors(editingElement) {
     );
     const nbBootstrapCols = 12;
     let colsInRow = 0;
+    const endReload = log.perf("reloadConnectors", () => ({
+        type,
+        steps: stepsEls.length,
+    }));
 
     for (let i = 0; i < stepsEls.length - 1; i++) {
         const connectorEl = stepsEls[i].querySelector(".s_process_step_connector");
@@ -155,6 +165,7 @@ function reloadConnectors(editingElement) {
                 ),
             );
     }
+    endReload();
 }
 /**
  * @param {HTMLElement} el

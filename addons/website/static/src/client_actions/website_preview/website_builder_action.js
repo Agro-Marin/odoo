@@ -137,10 +137,15 @@ export class WebsiteBuilderClientAction extends Component {
                 )}?path=${encodedPath}`;
                 this.websiteService.currentWebsiteId = websiteId;
             };
+            const endWillStart = log.perf("willStart fetchWebsites+groups");
             const proms = [
                 this.websiteService.fetchWebsites(),
                 this.websiteService.fetchUserGroups(),
             ];
+            log.logic("willStart websiteId source", () => ({
+                fromProps: Boolean(this.websiteId),
+                websiteId: this.websiteId,
+            }));
             if (this.websiteId) {
                 updateWebsiteId(this.websiteId);
                 await Promise.all(proms);
@@ -151,11 +156,16 @@ export class WebsiteBuilderClientAction extends Component {
                 ]);
                 updateWebsiteId(backendWebsiteRepr[0]);
             }
+            endWillStart(() => ({ initialUrl: this.initialUrl }));
         });
         onMounted(() => {
             this.addListeners(document);
             this.addSystrayItems();
             const edition = !!(this.enableEditor || this.editTranslations);
+            log.logic("mounted", () => ({
+                edition,
+                preloadSnippets: !this.ui.isSmall,
+            }));
             if (edition) {
                 this.onEditPage();
             }
@@ -176,6 +186,9 @@ export class WebsiteBuilderClientAction extends Component {
             }
         });
         onWillUnmount(() => {
+            log.lifecycle("willUnmount cleanups", () => ({
+                cleanups: this.cleanups.length,
+            }));
             for (const fn of this.cleanups) {
                 fn();
             }
@@ -200,6 +213,7 @@ export class WebsiteBuilderClientAction extends Component {
         );
         useEffect(
             (isEditing) => {
+                log.lifecycle("isEditing effect", { isEditing });
                 document
                     .querySelector("body")
                     .classList.toggle("o_builder_open", isEditing);
@@ -273,6 +287,7 @@ export class WebsiteBuilderClientAction extends Component {
 
     addSystrayItems() {
         if (!websiteSystrayRegistry.contains("website.WebsiteSystrayItem")) {
+            log.lifecycle("addSystrayItems registering WebsiteSystrayItem");
             websiteSystrayRegistry.add(
                 "website.WebsiteSystrayItem",
                 {
@@ -293,6 +308,7 @@ export class WebsiteBuilderClientAction extends Component {
         if (keepUrl) {
             params.forcedURL = this.websiteService.currentLocation;
         }
+        log.logic("onNewPage", () => ({ keepUrl, ...params }));
         this.dialog.add(AddPageDialog, params);
     }
 
@@ -308,10 +324,12 @@ export class WebsiteBuilderClientAction extends Component {
         this.blockIframe();
 
         if (this.isNavigatingToAnotherPage) {
+            log.logic("onEditPage waiting for page navigation");
             await this.isNavigatingToAnotherPage;
         }
 
         await this.loadIframeAndBundles(true);
+        log.pipeline("onEditPage dispatch edit_page");
         window.document.dispatchEvent(
             new CustomEvent("edit_page", {
                 detail: {
@@ -336,17 +354,24 @@ export class WebsiteBuilderClientAction extends Component {
     }
 
     async loadAssetsEditBundle() {
+        const endReady = log.perf("loadAssetsEditBundle waitForIframeReady");
         await this.waitForIframeReady();
+        endReady();
+        const endBundle = log.perf("loadBundle website.assets_inside_builder_iframe");
         await Promise.all([
             loadBundle("website.assets_inside_builder_iframe", {
                 targetDoc: this.websiteContent.el.contentDocument,
             }),
         ]);
+        endBundle();
     }
 
     replaceBrowserUrl() {
         const iframe = this.websiteContent.el;
         if (!iframe || !iframe.contentWindow) {
+            log.logic("replaceBrowserUrl skip: no iframe window", () => ({
+                iframe: Boolean(iframe),
+            }));
             return;
         }
 
@@ -356,6 +381,9 @@ export class WebsiteBuilderClientAction extends Component {
                 window.location.origin,
             )
         ) {
+            log.logic("replaceBrowserUrl cross-origin: fallback to /odoo", () => ({
+                iframeOrigin: iframe.contentWindow.location.origin,
+            }));
             history.replaceState(history.state, document.title, "/odoo");
             return;
         }
@@ -395,6 +423,9 @@ export class WebsiteBuilderClientAction extends Component {
                         "path",
                         `${pathUrl.pathname}${pathUrl.search}`,
                     );
+                    log.logic("onIframeLoad SecurityError: reloading iframe", () => ({
+                        src: srcUrl.toString(),
+                    }));
                     iframe.src = srcUrl.toString();
                     return;
                 } else {
@@ -403,11 +434,16 @@ export class WebsiteBuilderClientAction extends Component {
             }
         }
         if (this.lastPageURL !== iframe.contentWindow.location.href) {
+            log.logic("onIframeLoad page changed: hide resource editor", () => ({
+                from: this.lastPageURL,
+                to: iframe.contentWindow.location.href,
+            }));
             this.websiteService.context.showResourceEditor = false;
         }
         this.websiteService.pageDocument = this.websiteContent.el.contentDocument;
         const url = new URL(this.websiteService.contentWindow.location.href);
         if (url.searchParams.has("edit_translations")) {
+            log.logic("onIframeLoad strip edit_translations param");
             deleteQueryParam(
                 "edit_translations",
                 this.websiteService.contentWindow,
@@ -423,6 +459,10 @@ export class WebsiteBuilderClientAction extends Component {
         this.addWelcomeMessage();
         this.websiteService.hideLoader();
         this.lastPageURL = iframe.contentWindow.location.href;
+        log.pipeline("onIframeLoad done", () => ({
+            url: this.lastPageURL,
+            navigating: Boolean(this.isNavigatingToAnotherPage),
+        }));
 
         if (this.isNavigatingToAnotherPage) {
             this.isNavigatingToAnotherPage.resolve();
@@ -452,6 +492,7 @@ export class WebsiteBuilderClientAction extends Component {
             const { href, target } = linkEl;
             if (href && target !== "_blank" && !this.state.isEditing) {
                 if (isTopWindowURL(linkEl)) {
+                    log.logic("click: top window navigation", { href });
                     ev.preventDefault();
                     try {
                         browser.location.assign(href);
@@ -465,6 +506,7 @@ export class WebsiteBuilderClientAction extends Component {
                     this.websiteContent.el.contentWindow.location.pathname !==
                     new URL(href).pathname
                 ) {
+                    log.logic("click: iframe navigation to another page", { href });
                     this.websiteService.websitePublicEnv = undefined;
 
                     this.isNavigatingToAnotherPage = new Deferred();
@@ -504,14 +546,17 @@ export class WebsiteBuilderClientAction extends Component {
         return new Promise((resolve) => {
             const doc = this.websiteContent.el.contentDocument;
             if (doc.body.getAttribute("is-ready") === "true") {
+                log.logic("waitForIframeReady already ready");
                 resolve();
             } else {
                 const observer = new MutationObserver(() => {
                     if (doc.body.getAttribute("is-ready") === "true") {
                         observer.disconnect();
+                        log.lifecycle("waitForIframeReady observer disconnected");
                         resolve();
                     }
                 });
+                log.lifecycle("waitForIframeReady observer attached");
                 observer.observe(doc.body, {
                     attributes: true,
                     attributeFilter: ["is-ready"],
@@ -536,6 +581,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.initialTab = null;
         this.target = null;
         const isEditing = false;
+        log.lifecycle("reloadIframeAndCloseEditor");
         this.state.isEditing = isEditing;
         this.addSystrayItems();
         await this.reloadIframe(isEditing);
@@ -543,6 +589,7 @@ export class WebsiteBuilderClientAction extends Component {
 
     async reloadIframe(isEditing = true, url) {
         log.pipeline("reloadIframe", () => ({ isEditing, url }));
+        const endReload = log.perf("reloadIframe", () => ({ isEditing, url }));
         this.ui.block();
         this.preparePublicRootReady();
         this.setIframeLoaded();
@@ -559,12 +606,14 @@ export class WebsiteBuilderClientAction extends Component {
             this.websiteContent.el.contentWindow.location.reload();
         }
         await this.loadIframeAndBundles(isEditing);
+        endReload();
         this.ui.unblock();
     }
 
     reloadWebClient() {
         const currentPath = encodeURIComponent(window.location.pathname);
         const websiteId = this.websiteService.currentWebsite.id;
+        log.logic("reloadWebClient redirect", { websiteId, currentPath });
         redirect(
             `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
                 websiteId,
@@ -574,15 +623,24 @@ export class WebsiteBuilderClientAction extends Component {
 
     async installSnippetModule(snippet, beforeInstall) {
         this.dialog.closeAll();
+        const endInstall = log.perf("installSnippetModule", () => ({
+            moduleId: snippet.moduleId,
+            module: snippet.moduleDisplayName,
+        }));
         try {
             this.ui.block();
             await beforeInstall();
             await this.orm.call("ir.module.module", "button_immediate_install", [
                 [parseInt(snippet.moduleId)],
             ]);
+            endInstall();
             this.reloadWebClient();
         } catch (e) {
             if (e instanceof RPCError) {
+                log.logic("installSnippetModule failed: RPCError", () => ({
+                    moduleId: snippet.moduleId,
+                    message: e.message,
+                }));
                 const message = _t(
                     "Could not install module %s",
                     snippet.moduleDisplayName,
@@ -605,6 +663,7 @@ export class WebsiteBuilderClientAction extends Component {
         this.websiteContent.el.contentWindow.addEventListener(
             "PUBLIC-ROOT-READY",
             (event) => {
+                log.lifecycle("PUBLIC-ROOT-READY received");
                 this.websiteService.websitePublicEnv = event.detail.env;
                 deferred.resolve();
             },
@@ -618,6 +677,7 @@ export class WebsiteBuilderClientAction extends Component {
                 "#wrapwrap.homepage #wrap",
             );
             if (wrapEl && !wrapEl.innerHTML.trim()) {
+                log.logic("addWelcomeMessage: empty homepage for restricted editor");
                 this.welcomeMessageEl = renderToElement(
                     "website.homepage_editor_welcome_message",
                 );
@@ -652,6 +712,9 @@ export class WebsiteBuilderClientAction extends Component {
     onPageUnload() {
         const websiteDoc = this.websiteContent.el?.contentDocument;
         const fallBackDoc = this.iframefallback.el?.contentDocument;
+        log.lifecycle("onPageUnload", () => ({
+            copyToFallback: Boolean(websiteDoc && fallBackDoc),
+        }));
         if (!this.state.isEditing && websiteDoc && fallBackDoc) {
             fallBackDoc.documentElement.replaceWith(
                 websiteDoc.documentElement.cloneNode(true),
@@ -667,6 +730,9 @@ export class WebsiteBuilderClientAction extends Component {
         const iframesEl = this.iframefallback.el.contentDocument.querySelectorAll(
             'iframe[src]:not([src=""])',
         );
+        log.pipeline("cleanIframeFallback strip autoplay", () => ({
+            iframes: iframesEl.length,
+        }));
         for (const iframeEl of iframesEl) {
             const url = new URL(iframeEl.src);
             url.searchParams.delete("autoplay");
@@ -708,8 +774,10 @@ export class WebsiteBuilderClientAction extends Component {
             return;
         }
         if (this.websiteService.contentWindow === undefined) {
+            log.logic("refresh hotkey ignored: no content window", { hotkey });
             return;
         }
+        log.logic("refresh hotkey: redirect to preview", { hotkey });
         ev.preventDefault();
         const path = this.websiteService.contentWindow.location;
         const debugMode = this.env.debug ? `&debug=${this.env.debug}` : "";

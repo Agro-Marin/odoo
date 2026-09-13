@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { Dropdown, DropdownItem, useDropdownState } from "@web/components/dropdown";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useHotkey } from "@web/core/hotkeys/hotkey_hook";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
@@ -10,6 +12,8 @@ import { useService } from "@web/core/utils/hooks";
 import { redirect } from "@web/core/utils/urls";
 
 import { InstallModuleDialog } from "./install_module_dialog.js";
+
+const log = makeLogger("website.systray.new_content");
 
 export const MODULE_STATUS = {
     NOT_INSTALLED: "NOT_INSTALLED",
@@ -26,6 +30,7 @@ export class NewContentSystrayItem extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.orm = useService("orm");
         this.dialogs = useService("dialog");
         this.website = useService("website");
@@ -132,21 +137,31 @@ export class NewContentSystrayItem extends Component {
 
     async toggleDropdown() {
         if (this.dropdownWasAlreadyOpened) {
+            log.logic("toggleDropdown: cached, toggle only", () => ({
+                open: !this.dropdown.isOpen,
+            }));
             this.dropdown.isOpen = !this.dropdown.isOpen;
             return;
         }
         this.dropdownWasAlreadyOpened = true;
+        const endToggle = log.perf("toggleDropdown first open");
 
         const proms = [];
 
         proms.push(
             (async () => {
                 this.canInstall = user.isAdmin;
+                log.logic("toggleDropdown canInstall", () => ({
+                    canInstall: this.canInstall,
+                }));
                 if (this.canInstall) {
                     const moduleNames = this.state.newContentElements
                         .filter(({ status }) => status === MODULE_STATUS.NOT_INSTALLED)
                         .map(({ moduleName }) => moduleName);
                     this.modulesInfo = {};
+                    const endModules = log.perf("searchRead ir.module.module", () => ({
+                        modules: moduleNames.length,
+                    }));
                     for (const record of await this.orm
                         .cache()
                         .searchRead(
@@ -159,6 +174,7 @@ export class NewContentSystrayItem extends Component {
                             name: record.shortdesc,
                         };
                     }
+                    endModules(() => ({ found: Object.keys(this.modulesInfo).length }));
                 }
             })(),
         );
@@ -173,6 +189,9 @@ export class NewContentSystrayItem extends Component {
                         elementsToUpdate[element.model] = element;
                     }
                 }
+                const endAccess = log.perf("check_new_content_access_rights", () => ({
+                    models: modelsToCheck.length,
+                }));
                 const accesses = await rpc(
                     "/website/check_new_content_access_rights",
                     {
@@ -180,6 +199,7 @@ export class NewContentSystrayItem extends Component {
                     },
                     { cache: true },
                 );
+                endAccess(() => ({ accesses }));
                 for (const [model, access] of Object.entries(accesses)) {
                     elementsToUpdate[model].isDisplayed = access;
                 }
@@ -187,7 +207,9 @@ export class NewContentSystrayItem extends Component {
         );
 
         await Promise.all(proms);
+        endToggle();
         this.dropdown.open();
+        log.pipeline("toggleDropdown prefetch get_new_page_templates");
 
         rpc(
             "/website/get_new_page_templates",
@@ -208,9 +230,12 @@ export class NewContentSystrayItem extends Component {
     }
 
     async installModule(id, redirectUrl) {
+        const endInstall = log.perf("button_immediate_install", { id });
         await this.orm.silent.call("ir.module.module", "button_immediate_install", [
             id,
         ]);
+        endInstall();
+        log.logic("installModule redirect", { id, redirectUrl });
         if (redirectUrl) {
             this.website.prepareOutLoader();
             redirect(redirectUrl);
@@ -221,6 +246,7 @@ export class NewContentSystrayItem extends Component {
             } = this.website.currentWebsite;
             const url = new URL(path);
             if (viewXmlid === "website.page_404") {
+                log.logic("installModule: from 404 page, redirect to root");
                 url.pathname = "";
             }
             this.website.prepareOutLoader();
@@ -233,14 +259,25 @@ export class NewContentSystrayItem extends Component {
 
     onClickNewContent(element) {
         if (element.createNewContent) {
+            log.logic("onClickNewContent: createNewContent", () => ({
+                module: element.moduleName,
+            }));
             return element.createNewContent();
         }
 
         const { id, name } = this.modulesInfo[element.moduleName];
+        log.logic("onClickNewContent: install dialog", () => ({
+            module: element.moduleName,
+            id,
+            status: element.status,
+        }));
         const dialogProps = {
             title: element.title,
             installationText: sprintf(this.newContentText.installNeeded, name),
             installModule: async () => {
+                log.pipeline("install module: mark installing", () => ({
+                    module: element.moduleName,
+                }));
                 this.state.newContentElements = this.state.newContentElements.map(
                     (el) => {
                         if (el.moduleXmlId === element.moduleXmlId) {
@@ -258,6 +295,10 @@ export class NewContentSystrayItem extends Component {
                 try {
                     await this.installModule(id, element.redirectUrl);
                 } catch (error) {
+                    log.logic("install module failed", () => ({
+                        module: element.moduleName,
+                        message: error?.message,
+                    }));
                     this.website.hideLoader();
                     this.state.newContentElements = this.state.newContentElements.map(
                         (el) => {
@@ -277,10 +318,15 @@ export class NewContentSystrayItem extends Component {
     }
 
     async onAddContent(action, edition = false, context = null) {
+        log.logic("onAddContent", () => ({ action, edition, context }));
         this.action.doAction(action, {
             additionalContext: context ? context : {},
             onClose: (infos) => {
                 if (infos && !infos.dismiss) {
+                    log.logic("onAddContent closed: go to new content", () => ({
+                        path: infos.path,
+                        edition,
+                    }));
                     this.website.goToWebsite({ path: infos.path, edition: edition });
                     this.dropdown.close();
                 }

@@ -6,6 +6,7 @@ import { between } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { uniqueId } from "@web/core/utils/functions";
@@ -16,6 +17,8 @@ import {
 } from "@website/builder/option_sequence";
 
 import { CarouselItemHeaderMiddleButtons } from "./carousel_item_header_buttons.js";
+
+const log = makeLogger("website.builder.plugin.carousel_option");
 
 /**
  * @typedef { Object } CarouselOptionShared
@@ -102,6 +105,7 @@ export class CarouselOptionPlugin extends Plugin {
     };
 
     restoreCarousels(rootEl = this.editable) {
+        const endRestore = log.perf("restoreCarousels");
         for (const carouselEl of selectElements(rootEl, ".carousel")) {
             carouselEl.querySelectorAll(".carousel-item").forEach((itemEl, i) => {
                 itemEl.classList.remove("next", "prev", "left", "right");
@@ -117,6 +121,7 @@ export class CarouselOptionPlugin extends Plugin {
                     }
                 });
         }
+        endRestore();
     }
 
     getTitleExtraInfo(editingElement) {
@@ -131,9 +136,13 @@ export class CarouselOptionPlugin extends Plugin {
      */
     async addSlide(editingElement) {
         const activeItemEl = editingElement.querySelector(".carousel-item.active");
+        const endClone = log.perf("addSlide clone active item", () => ({
+            carouselId: editingElement.id,
+        }));
         const newItemEl = await this.dependencies.clone.cloneElement(activeItemEl, {
             activateClone: false,
         });
+        endClone();
         newItemEl.classList.remove("active");
 
         const controlEls = editingElement.querySelectorAll(carouselControlsSelector);
@@ -147,7 +156,13 @@ export class CarouselOptionPlugin extends Plugin {
         newIndicatorEl.setAttribute("aria-label", _t("Carousel indicator"));
         indicatorsEl.appendChild(newIndicatorEl);
 
+        log.pipeline("addSlide slide to new item", () => ({
+            controls: controlEls.length,
+            indicators: indicatorsEl.children.length,
+        }));
+        const endSlide = log.perf("addSlide slide next");
         await this.slide(editingElement, "next");
+        endSlide();
     }
 
     /**
@@ -156,12 +171,15 @@ export class CarouselOptionPlugin extends Plugin {
     async removeSlide(editingElement) {
         const itemEls = [...editingElement.querySelectorAll(".carousel-item")];
         const newLength = itemEls.length - 1;
+        log.logic("removeSlide", () => ({ carouselId: editingElement.id, newLength }));
         if (newLength > 0) {
             const activeItemEl = editingElement.querySelector(".carousel-item.active");
             const activeIndicatorEl = editingElement.querySelector(
                 ".carousel-indicators > .active",
             );
+            const endSlide = log.perf("removeSlide slide prev");
             await this.slide(editingElement, "prev");
+            endSlide();
 
             activeItemEl.remove();
             activeIndicatorEl.remove();
@@ -180,6 +198,7 @@ export class CarouselOptionPlugin extends Plugin {
      * @param {String} direction
      */
     async slideCarousel(editingElement, direction) {
+        log.pipeline("slideCarousel", { direction });
         await this.slide(editingElement, direction);
     }
 
@@ -189,6 +208,10 @@ export class CarouselOptionPlugin extends Plugin {
      * @returns {Promise}
      */
     slide(editingElement, direction) {
+        const endSlideTransition = log.perf("slide", () => ({
+            carouselId: editingElement.id,
+            direction,
+        }));
         editingElement.addEventListener(
             "slide.bs.carousel",
             () => {
@@ -201,9 +224,11 @@ export class CarouselOptionPlugin extends Plugin {
             let settled = false;
             const finalize = () => {
                 if (settled) {
+                    log.logic("slide finalize skip: already settled");
                     return;
                 }
                 settled = true;
+                endSlideTransition();
                 const itemEls = editingElement.querySelectorAll(".carousel-item");
                 const activeItemEl = editingElement.querySelector(
                     ".carousel-item.active",
@@ -229,6 +254,9 @@ export class CarouselOptionPlugin extends Plugin {
             const win = editingElement.ownerDocument.defaultView;
             const Carousel = getBootstrapComponent(win, "Carousel");
             if (!Carousel) {
+                log.logic(
+                    "slide fallback: no bootstrap Carousel, moving item directly",
+                );
                 // a page that publishes no edit bundle still gets the move,
                 // without the transition
                 this.moveActiveItem(editingElement, direction);
@@ -255,6 +283,7 @@ export class CarouselOptionPlugin extends Plugin {
     moveActiveItem(editingElement, direction) {
         const itemEls = [...editingElement.querySelectorAll(".carousel-item")];
         if (!itemEls.length) {
+            log.logic("moveActiveItem skip: no carousel items");
             return;
         }
         const activeIndex = itemEls.findIndex((el) => el.classList.contains("active"));
@@ -267,17 +296,22 @@ export class CarouselOptionPlugin extends Plugin {
             index = activeIndex + 1;
         }
         index = ((index % itemEls.length) + itemEls.length) % itemEls.length;
+        log.pipeline("moveActiveItem", { direction, activeIndex, index });
         itemEls.forEach((el, i) => el.classList.toggle("active", i === index));
     }
 
     onCloned({ cloneEl }) {
         if (cloneEl.matches(carouselWrapperSelector)) {
+            log.pipeline("onCloned assign unique carousel id");
             this.assignUniqueID(cloneEl);
         }
     }
 
     onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(carouselWrapperSelector)) {
+            log.pipeline("onSnippetDropped assign unique carousel id", () => ({
+                snippet: snippetEl.dataset.snippet,
+            }));
             this.assignUniqueID(snippetEl);
         }
     }
@@ -287,6 +321,12 @@ export class CarouselOptionPlugin extends Plugin {
      */
     assignUniqueID(editingElement) {
         const id = uniqueId("myCarousel");
+        log.pipeline("assignUniqueID", () => ({
+            id,
+            targets: editingElement.querySelectorAll(
+                "[data-bs-target], [data-bs-slide], [data-bs-slide-to]",
+            ).length,
+        }));
         editingElement.querySelector(".carousel").setAttribute("id", id);
         editingElement.querySelectorAll("[data-bs-target]").forEach((el) => {
             el.setAttribute("data-bs-target", "#" + id);
@@ -312,6 +352,7 @@ export class CarouselOptionPlugin extends Plugin {
         if (optionName === "Carousel") {
             const carouselEl = activeItemEl.closest(".carousel");
             itemEls = [...carouselEl.querySelectorAll(".carousel-item")];
+            log.pipeline("getGalleryItems", () => ({ count: itemEls.length }));
         }
         return itemEls;
     }
@@ -332,6 +373,10 @@ export class CarouselOptionPlugin extends Plugin {
             carouselInnerEl.replaceWith(newCarouselInnerEl);
 
             const newPosition = itemEls.indexOf(activeItemEl);
+            log.pipeline("reorderCarouselItems", () => ({
+                count: itemEls.length,
+                newPosition,
+            }));
             updateCarouselIndicators(carouselEl, newPosition);
 
             this.dependencies.builderOptions.setNextTarget(activeItemEl);
@@ -360,6 +405,7 @@ export class AddSlideAction extends BuilderAction {
         this.preview = false;
     }
     async apply({ editingElement }) {
+        log.pipeline("AddSlideAction apply", () => ({ carouselId: editingElement.id }));
         return this.dependencies.carouselOption.addSlide(editingElement);
     }
 }
@@ -371,6 +417,7 @@ export class SlideCarouselAction extends BuilderAction {
         this.withLoadingEffect = false;
     }
     async apply({ editingElement, params: { direction } }) {
+        log.pipeline("SlideCarouselAction apply", { direction });
         await this.dependencies.carouselOption.slideCarousel(editingElement, direction);
     }
 }
@@ -383,6 +430,7 @@ export class ToggleControllersAction extends BuilderAction {
         const areControllersHidden =
             carouselEl.classList.contains("s_carousel_arrows_hidden") &&
             indicatorsEl.classList.contains("s_carousel_indicators_hidden");
+        log.logic("ToggleControllersAction apply", { areControllersHidden });
         carouselEl.classList.toggle(
             "s_carousel_controllers_hidden",
             areControllersHidden,
@@ -394,15 +442,25 @@ export class ToggleCardImgAction extends BuilderAction {
     apply({ editingElement }) {
         const carouselEl = editingElement.closest(".carousel");
         const cardEls = carouselEl.querySelectorAll(".card");
+        const endRender = log.perf(
+            "ToggleCardImgAction apply render image wrappers",
+            () => ({
+                cards: cardEls.length,
+            }),
+        );
         for (const cardEl of cardEls) {
             const imageWrapperEl = renderToElement(
                 "website.s_carousel_cards.imageWrapper",
             );
             cardEl.insertAdjacentElement("afterbegin", imageWrapperEl);
         }
+        endRender();
     }
     clean({ editingElement: el }) {
         const carouselEl = el.closest(".carousel");
+        log.pipeline("ToggleCardImgAction clean remove figures", () => ({
+            count: carouselEl.querySelectorAll("figure").length,
+        }));
         carouselEl.querySelectorAll("figure").forEach((el) => el.remove());
     }
     isApplied({ editingElement }) {

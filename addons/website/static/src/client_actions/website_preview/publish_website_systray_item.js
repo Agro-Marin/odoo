@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, useState, xml } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -9,6 +11,8 @@ import { OptimizeSEODialog } from "@website/components/dialog/seo";
 import { checkAndNotifySEO } from "@website/js/utils";
 
 const websiteSystrayRegistry = registry.category("website_systray");
+
+const log = makeLogger("website.systray.publish");
 
 export class PublishSystrayItem extends Component {
     static template = xml`
@@ -24,6 +28,7 @@ export class PublishSystrayItem extends Component {
     static props = {};
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.orm = useService("orm");
         this.dialogService = useService("dialog");
@@ -49,6 +54,7 @@ export class PublishSystrayItem extends Component {
 
     async publishContent() {
         if (this.state.processing) {
+            log.logic("publishContent skip: already processing");
             return;
         }
         this.state.processing = true;
@@ -56,19 +62,26 @@ export class PublishSystrayItem extends Component {
         const {
             metadata: { mainObject },
         } = this.website.currentWebsite;
+        const endPublish = log.perf("website_publish_button", () => ({
+            model: mainObject.model,
+            id: mainObject.id,
+        }));
         return this.orm
             .call(mainObject.model, "website_publish_button", [[mainObject.id]])
             .then(
                 async (published) => {
+                    endPublish({ published });
                     this.state.published = published;
                     if (
                         published &&
                         this.website.currentWebsite.metadata.canOptimizeSeo
                     ) {
+                        const endSeo = log.perf("get_seo_data after publish");
                         const seo_data = await rpc("/website/get_seo_data", {
                             res_id: mainObject.id,
                             res_model: mainObject.model,
                         });
+                        endSeo();
                         checkAndNotifySEO(seo_data, OptimizeSEODialog, {
                             notification: this.notificationService,
                             dialog: this.dialogService,
@@ -78,6 +91,9 @@ export class PublishSystrayItem extends Component {
                     return published;
                 },
                 (err) => {
+                    log.logic("publishContent failed: revert toggle", () => ({
+                        message: err?.message,
+                    }));
                     this.state.published = !this.state.published;
                     this.state.processing = false;
                     throw err;

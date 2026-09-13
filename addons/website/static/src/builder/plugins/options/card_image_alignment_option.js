@@ -1,5 +1,9 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.card_image_alignment_option");
 
 export class CardImageAlignmentOption extends BaseOptionComponent {
     static template = "website.CardImageAlignmentOption";
@@ -13,6 +17,7 @@ export class CardImageAlignmentOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState(async (editingElement) => {
             await this.waitForAllImageloaded(this.env.getEditingElements());
             const coverImageWrapperEl = editingElement.querySelector(

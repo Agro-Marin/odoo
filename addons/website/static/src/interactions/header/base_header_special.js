@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { BaseHeader } from "@website/interactions/header/base_header";
+
+const log = makeLogger("website.interaction.base_header_special");
 
 export class BaseHeaderSpecial extends BaseHeader {
     dynamicSelectors = {
@@ -38,6 +41,12 @@ export class BaseHeaderSpecial extends BaseHeader {
      */
     onDropdownShow(ev) {
         if (this.cssAffixed) {
+            log.logic(
+                "BaseHeaderSpecial onDropdownShow: affixed, scroll to top first",
+                () => ({
+                    toggle: ev.currentTarget.className,
+                }),
+            );
             ev.preventDefault();
             this.scrollingElement.scrollTo({ top: 0, behavior: "smooth" });
             this.dropdownClickedEl = ev.currentTarget;
@@ -60,6 +69,11 @@ export class BaseHeaderSpecial extends BaseHeader {
 
         if (scroll > this.topGap) {
             if (!this.cssAffixed) {
+                log.logic("BaseHeaderSpecial onScroll: affix", () => ({
+                    interaction: this.constructor.name,
+                    scroll,
+                    topGap: this.topGap,
+                }));
                 this.transformShow();
                 void this.el.offsetWidth;
                 this.toggleCSSAffixed(true);
@@ -115,6 +129,12 @@ export class BaseHeaderSpecial extends BaseHeader {
         }
 
         if (!this.cssAffixed && this.dropdownClickedEl) {
+            log.logic(
+                "BaseHeaderSpecial onScroll: reopen dropdown clicked while affixed",
+                () => ({
+                    isConnected: this.dropdownClickedEl.isConnected,
+                }),
+            );
             if (this.dropdownClickedEl.isConnected) {
                 Dropdown.getOrCreateInstance(this.dropdownClickedEl).show();
             }
@@ -125,6 +145,11 @@ export class BaseHeaderSpecial extends BaseHeader {
             const scrollingDownward = scroll > this.position;
             this.position = scroll;
             if (this.scrollingDownward !== scrollingDownward) {
+                log.logic("BaseHeaderSpecial onScroll: direction changed", () => ({
+                    interaction: this.constructor.name,
+                    scrollingDownward,
+                    checkpoint: scroll,
+                }));
                 this.checkpoint = scroll;
             }
             this.scrollingDownward = scrollingDownward;
@@ -132,6 +157,14 @@ export class BaseHeaderSpecial extends BaseHeader {
             if (scrollingDownward) {
                 const movement = this.position - this.checkpoint;
                 if (this.isVisible && movement > this.scrollOffset + this.topGap) {
+                    log.pipeline(
+                        "BaseHeaderSpecial onScroll: visible -> hidden",
+                        () => ({
+                            interaction: this.constructor.name,
+                            movement,
+                            position: this.position,
+                        }),
+                    );
                     this.transformHide();
                 }
             } else {
@@ -140,6 +173,14 @@ export class BaseHeaderSpecial extends BaseHeader {
                     !this.isVisible &&
                     movement > (this.scrollOffset + this.topGap) / 2
                 ) {
+                    log.pipeline(
+                        "BaseHeaderSpecial onScroll: hidden -> visible",
+                        () => ({
+                            interaction: this.constructor.name,
+                            movement,
+                            position: this.position,
+                        }),
+                    );
                     this.transformShow();
                 }
             }

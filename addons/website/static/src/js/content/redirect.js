@@ -1,8 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { session } from "@web/session";
+
+const log = makeLogger("website.content.redirect");
 
 document.addEventListener("DOMContentLoaded", () => {
     if (session.is_website_user) {
+        log.logic("skip: public website user");
         return;
     }
 
@@ -20,6 +24,7 @@ document.addEventListener("DOMContentLoaded", () => {
             currentUrl.searchParams.get("enable_editor") ||
             currentUrl.searchParams.get("edit_translations")
         ) {
+            log.logic("redirect to backend editor", () => ({ to: currentUrl.href }));
             document.body.innerHTML = "";
             window.location.replace(currentUrl.href);
             return;
@@ -28,6 +33,7 @@ document.addEventListener("DOMContentLoaded", () => {
             ".o_frontend_to_backend_edit_btn",
         );
         if (backendEditBtnEl) {
+            log.pipeline("backend edit button wired", () => ({ to: currentUrl.href }));
             backendEditBtnEl.href = currentUrl.href;
             document.addEventListener(
                 "keydown",
@@ -49,6 +55,7 @@ document.addEventListener("DOMContentLoaded", () => {
             backendUserDropdownLinkEl.classList.add("d-none");
             backendUserDropdownLinkEl.classList.remove("d-flex");
         }
+        log.lifecycle("OdooFrameContentLoaded dispatched");
         window.frameElement.dispatchEvent(new CustomEvent("OdooFrameContentLoaded"));
     }
 });

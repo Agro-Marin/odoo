@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { withHistory } from "@website/core/website_edit_service";
 import { CarouselBootstrapUpgradeFix } from "@website/interactions/carousel/carousel_bootstrap_upgrade_fix";
+
+const log = makeLogger("website.interaction.carousel_bootstrap_upgrade_fix.edit");
 
 const CarouselBootstrapUpgradeFixEdit = (I) =>
     class extends I {
@@ -9,6 +12,9 @@ const CarouselBootstrapUpgradeFixEdit = (I) =>
 
         setup() {
             super.setup();
+            log.lifecycle("CarouselBootstrapUpgradeFixEdit setup", () => ({
+                id: this.el.id,
+            }));
             this.dynamicContent = withHistory(this.dynamicContent);
         }
     };

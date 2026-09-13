@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import {
@@ -8,6 +9,8 @@ import {
     getObservedEls,
     makeHighlightSvgs,
 } from "@website/js/highlight_utils";
+
+const log = makeLogger("website.interaction.text_highlights");
 
 export class TextHighlight extends Interaction {
     static selector = "#wrapwrap, .o_wslides_fs_content";
@@ -23,15 +26,27 @@ export class TextHighlight extends Interaction {
         this.mutationObserver = new window.MutationObserver(
             this.updateEntries.bind(this),
         );
+        log.lifecycle("TextHighlight setup: observers created", () => ({
+            root: this.el.id || this.el.className,
+        }));
     }
 
     start() {
+        log.pipeline("TextHighlight start: observe highlights", () => ({
+            highlights: this.el.querySelectorAll(".o_text_highlight").length,
+        }));
         for (const textEl of this.el.querySelectorAll(".o_text_highlight")) {
             this.handleEl(textEl);
         }
     }
 
     destroy() {
+        log.lifecycle(
+            "TextHighlight destroy: observers disconnected, svgs removed",
+            () => ({
+                svgs: this.el.querySelectorAll(".o_text_highlight_svg").length,
+            }),
+        );
         this.resizeObserver.disconnect();
         this.mutationObserver.disconnect();
         for (const svg of this.el.querySelectorAll(".o_text_highlight_svg")) {
@@ -43,6 +58,7 @@ export class TextHighlight extends Interaction {
         this.waitForAnimationFrame(() => this._updateEntries(entries));
     }
     _updateEntries(entries) {
+        const endUpdate = log.perf("TextHighlight rebuild highlight svgs");
         const closestToObserves = new Set();
         for (const { target, addedNodes = [], removedNodes = [] } of entries) {
             const elements = [target, ...addedNodes, ...removedNodes]
@@ -73,6 +89,10 @@ export class TextHighlight extends Interaction {
                 }
             }
         }
+        endUpdate(() => ({
+            entries: entries.length,
+            containers: closestToObserves.size,
+        }));
     }
     /**
      * @param {HTMLElement} el
@@ -111,6 +131,9 @@ export class TextHighlight extends Interaction {
      * @param {HTMLElement} el
      */
     onTextHighlightAdded(el) {
+        log.logic("TextHighlight onTextHighlightAdded", () => ({
+            highlight: getCurrentTextHighlight(el),
+        }));
         this.handleEl(el);
     }
 }

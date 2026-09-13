@@ -2,8 +2,12 @@
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { isCSSColor } from "@web/core/utils/format/colors";
+
+const log = makeLogger("website.builder.option.chart_option");
 
 export const DATASET_KEY_PREFIX = "chart_dataset_";
 
@@ -23,10 +27,15 @@ export class ChartOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
 
         this.env.getEditingElement().dataset.data = JSON.stringify(
             this.prepareData(this.env.getEditingElement()),
         );
+        log.pipeline("ChartOption prepared chart data", () => ({
+            datasets: JSON.parse(this.env.getEditingElement().dataset.data).datasets
+                .length,
+        }));
 
         this.state = useState({ currentCell: {} });
 
@@ -160,12 +169,19 @@ export class ChartOption extends BaseOptionComponent {
      */
     handleCellFocus(ev) {
         if (this.isTableButton(ev.target)) {
+            log.logic("ChartOption cell focus ignored: table button");
             return;
         }
         const { cellEl, cellSectionEl, datasetIndex, dataIndex } = this.getCellInfo(ev);
         if (!cellEl) {
+            log.logic("ChartOption cell focus ignored: not a cell");
             return;
         }
+        log.logic("ChartOption cell focus", () => ({
+            section: cellSectionEl.tagName,
+            datasetIndex,
+            dataIndex,
+        }));
         const cellRowEl = cellEl.parentElement;
         if (cellSectionEl.tagName === "THEAD" && datasetIndex !== -1) {
             this.updateCurrentCell({
@@ -189,6 +205,13 @@ export class ChartOption extends BaseOptionComponent {
         const { cellEl, cellSectionEl, datasetIndex, dataIndex } = this.getCellInfo(ev);
         const isColumnButton = dataIndex === cellSectionEl.children.length - 1;
         const isRowButton = datasetIndex === cellEl.parentElement.children.length - 2;
+        log.logic("ChartOption table button click", () => ({
+            isColumnButton,
+            isRowButton,
+            datasetIndex,
+            dataIndex,
+            className: ev.target.className,
+        }));
 
         if (isColumnButton) {
             if (ev.target.classList.contains("add_row")) {
@@ -221,6 +244,7 @@ export class ChartOption extends BaseOptionComponent {
      */
     onDatasetLabelClick(ev) {
         const { datasetIndex } = this.getCellInfo(ev);
+        log.logic("ChartOption dataset label click", () => ({ datasetIndex }));
         this.updateCurrentCell({
             datasetIndex: this.domState.isPieChart ? null : datasetIndex,
             dataIndex: this.domState.isPieChart ? null : 0,

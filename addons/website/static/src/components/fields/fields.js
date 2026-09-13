@@ -1,11 +1,15 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { debounce } from "@web/core/utils/timing";
 import { UrlField, urlField } from "@web/fields/basic/url/url_field";
 import { standardFieldProps } from "@web/fields/standard_field_props";
 import { PageDependencies } from "@website/components/dialog/page_properties";
+
+const log = makeLogger("website.field.fields");
 
 class PageUrlField extends UrlField {
     static components = { PageDependencies };
@@ -17,6 +21,7 @@ class PageUrlField extends UrlField {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.serverUrl = `${window.location.origin}/`;
         this.inputRef = useRef("input");
 
@@ -29,6 +34,10 @@ class PageUrlField extends UrlField {
                         const currentValue = inputEl.value;
                         const valueChanged = currentValue !== originalValue;
                         if (valueChanged !== previousValueChanged) {
+                            log.logic("PageUrlField dispatch change", {
+                                valueChanged,
+                                currentValue,
+                            });
                             if (currentValue[0] !== "/") {
                                 inputEl.value = `/${currentValue}`;
                             }
@@ -39,7 +48,9 @@ class PageUrlField extends UrlField {
                     }, 100);
 
                     inputEl.addEventListener("input", fireChangeEvent);
+                    log.lifecycle("PageUrlField input listener attached");
                     return () => {
+                        log.lifecycle("PageUrlField input listener removed");
                         inputEl.removeEventListener("input", fireChangeEvent);
                     };
                 }
@@ -73,6 +84,7 @@ export class ImageRadioField extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         const selection = this.props.record.fields[this.props.name].selection;
         this.values = selection
             .filter((item) => item[0] || item[1])
@@ -80,12 +92,17 @@ export class ImageRadioField extends Component {
                 ...value,
                 (this.props.images && this.props.images[index]) || "",
             ]);
+        log.pipeline("ImageRadioField values", () => ({
+            values: this.values.length,
+            images: this.props.images?.length,
+        }));
     }
 
     /**
      * @param {String} value
      */
     onSelectValue(value) {
+        log.logic("ImageRadioField select", () => ({ name: this.props.name, value }));
         this.props.record.update({ [this.props.name]: value });
     }
 }

@@ -2,9 +2,12 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.controller_page_listing_layout_option");
 
 const mainObjectRe = /website\.controller\.page\(((\d+,?)*)\)/;
 
@@ -48,11 +51,17 @@ export class ListingLayoutAction extends BuilderAction {
                 return id ? [id] : [];
             });
         }
+        log.logic("ListingLayoutAction prepare", () => ({
+            matched: !!match,
+            resIds: this.resIds,
+        }));
+        const endRead = log.perf("ListingLayoutAction read default_layout");
         const results = await this.services.orm.read(
             "website.controller.page",
             this.resIds,
             ["default_layout"],
         );
+        endRead(() => ({ records: results.length }));
         this.layout = results[0]["default_layout"];
     }
     getValue() {
@@ -66,12 +75,17 @@ export class ListingLayoutAction extends BuilderAction {
             layout_mode: value,
             view_id: el.dataset.viewId,
         };
+        const endSave = log.perf("ListingLayoutAction save layout", () => ({
+            layout: value,
+            resIds: this.resIds,
+        }));
         await Promise.all([
             this.services.orm.write("website.controller.page", this.resIds, {
                 default_layout: value,
             }),
             rpc("/website/save_session_layout_mode", params),
         ]);
+        endSave();
     }
 }
 

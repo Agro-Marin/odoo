@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Deferred } from "@web/core/utils/concurrency";
@@ -8,6 +9,8 @@ import { renderToElement } from "@web/core/utils/render";
 
 import { GoogleMapsApiKeyDialog } from "./google_maps_api_key_dialog.js";
 import { GoogleMapsOption } from "./google_maps_option.js";
+
+const log = makeLogger("website.builder.plugin.google_maps_option");
 
 /**
  * @typedef {Object} Place
@@ -72,22 +75,32 @@ export class GoogleMapsOptionPlugin extends Plugin {
 
         /** @type {Map<HTMLElement, Deferred} */
         this.recentlyDroppedSnippetDeferredInit = new Map();
+        log.lifecycle("GoogleMapsOptionPlugin setup");
     }
 
     async onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(".s_google_map")) {
             const deferredInit = new Deferred();
             this.recentlyDroppedSnippetDeferredInit.set(snippetEl, deferredInit);
+            log.lifecycle("GoogleMapsOptionPlugin map dropped: restart interactions");
             this.dependencies.edit_interaction.restartInteractions(snippetEl);
+            const endInit = log.perf(
+                "GoogleMapsOptionPlugin wait for dropped map init",
+            );
             const initSuccess = await deferredInit;
+            endInit(() => ({ initSuccess }));
             this.recentlyDroppedSnippetDeferredInit.delete(snippetEl);
             if (!initSuccess) {
+                log.logic("GoogleMapsOptionPlugin map init failed: cancel drop");
                 return true;
             }
         }
     }
 
     failedToInitializeGoogleMaps(editingElement) {
+        log.logic("GoogleMapsOptionPlugin failed to initialize", () => ({
+            pendingDrop: this.recentlyDroppedSnippetDeferredInit.has(editingElement),
+        }));
         this.recentlyDroppedSnippetDeferredInit.get(editingElement)?.resolve(false);
     }
 
@@ -98,6 +111,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
     async initializeGoogleMaps(editingElement, mapsAPI) {
         this.recentlyDroppedSnippetDeferredInit.get(editingElement)?.resolve(true);
         if (mapsAPI) {
+            log.lifecycle("GoogleMapsOptionPlugin maps api available", () => ({
+                hasPlaces: !!mapsAPI.places,
+            }));
             this.mapsAPI = mapsAPI;
             this.placesAPI = mapsAPI.places;
         }
@@ -113,10 +129,23 @@ export class GoogleMapsOptionPlugin extends Plugin {
      * @returns {Promise<Place | undefined>}
      */
     async getPlace(editingElement, coordinates) {
+        const endSearch = log.perf("GoogleMapsOptionPlugin getPlace", () => ({
+            coordinates,
+        }));
         const place = await this.nearbySearch(coordinates);
+        endSearch(() => ({ found: !!place, error: place?.error }));
         if (place?.error && !this.isGoogleMapsErrorBeingHandled) {
+            log.logic("GoogleMapsOptionPlugin getPlace error", () => ({
+                error: place.error,
+            }));
             this.notifyGMapsError(editingElement);
         } else if (!place && !this.isGoogleMapsErrorBeingHandled) {
+            log.logic(
+                "GoogleMapsOptionPlugin getPlace no place: undo initialize",
+                () => ({
+                    canUndo: !!this.undoInitialize,
+                }),
+            );
             this.undoInitialize?.();
         } else {
             return place;
@@ -137,6 +166,10 @@ export class GoogleMapsOptionPlugin extends Plugin {
             const currentMapData = editingElement.dataset;
             const { mapGps, pinAddress } = currentMapData;
             if (mapGps !== coordinates || pinAddress !== place.formatted_address) {
+                log.logic("GoogleMapsOptionPlugin commitPlace: map moved", () => ({
+                    from: mapGps,
+                    to: coordinates,
+                }));
                 editingElement.dataset.mapGps = coordinates;
                 editingElement.dataset.pinAddress = place.formatted_address;
                 this.dispatchTo("content_manually_updated_handlers", editingElement);
@@ -153,6 +186,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
         this.undoInitialize = this.dependencies.history.makeSavePoint();
         /** @type {number} */
         const websiteId = this.websiteService.currentWebsite.id;
+        log.lifecycle("GoogleMapsOptionPlugin open api key dialog", () => ({
+            hasApiKey: !!apiKey,
+        }));
 
         /** @type {boolean} */
         const didReconfigure = await new Promise((resolve) => {
@@ -162,9 +198,13 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 {
                     originalApiKey: apiKey,
                     onSave: async (newApiKey) => {
+                        const endWrite = log.perf(
+                            "GoogleMapsOptionPlugin write google_maps_api_key",
+                        );
                         await this.orm.write("website", [websiteId], {
                             google_maps_api_key: newApiKey,
                         });
+                        endWrite();
                         this.shouldRefetchApiKey = false;
                         isInvalidated = true;
                     },
@@ -174,6 +214,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
                 },
             );
         });
+        log.logic("GoogleMapsOptionPlugin api key dialog closed", () => ({
+            didReconfigure,
+        }));
         return didReconfigure;
     }
 
@@ -184,6 +227,9 @@ export class GoogleMapsOptionPlugin extends Plugin {
     async nearbySearch(coordinates) {
         const place = this.gpsMapCache.get(coordinates);
         if (place) {
+            log.logic("GoogleMapsOptionPlugin nearbySearch cache hit", () => ({
+                coordinates,
+            }));
             return place;
         }
 
@@ -214,6 +260,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
                                     this.gpsMapCache.set(coordinates, place);
                                     resolve(place);
                                 } else if (GMAPS_CRITICAL_ERRORS.includes(status)) {
+                                    log.logic(
+                                        "GoogleMapsOptionPlugin getDetails critical error",
+                                        () => ({
+                                            status,
+                                        }),
+                                    );
                                     resolve({ error: status });
                                 } else {
                                     resolve();
@@ -221,6 +273,12 @@ export class GoogleMapsOptionPlugin extends Plugin {
                             },
                         );
                     } else if (GMAPS_CRITICAL_ERRORS.includes(status)) {
+                        log.logic(
+                            "GoogleMapsOptionPlugin nearbySearch critical error",
+                            () => ({
+                                status,
+                            }),
+                        );
                         resolve({ error: status });
                     } else {
                         resolve();
@@ -233,6 +291,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
     notifyGMapsError(editingElement) {
         if (!this.isGoogleMapsErrorBeingHandled) {
             this.isGoogleMapsErrorBeingHandled = true;
+            log.logic("GoogleMapsOptionPlugin maps error: clear api key and restart");
 
             this.notification.add(
                 _t(
@@ -264,6 +323,7 @@ export class GoogleMapsOptionPlugin extends Plugin {
 export class ResetMapColorAction extends BuilderAction {
     static id = "resetMapColor";
     apply({ editingElement }) {
+        log.pipeline("ResetMapColorAction apply");
         editingElement.dataset.mapColor = "";
     }
 }
@@ -273,9 +333,12 @@ export class ShowDescriptionAction extends BuilderAction {
         return !!editingElement.querySelector(".description");
     }
     apply({ editingElement }) {
+        const endRender = log.perf("ShowDescriptionAction render description");
         editingElement.append(renderToElement("html_builder.GoogleMapsDescription"));
+        endRender();
     }
     clean({ editingElement }) {
+        log.pipeline("ShowDescriptionAction clean");
         editingElement.querySelector(".description").remove();
     }
 }

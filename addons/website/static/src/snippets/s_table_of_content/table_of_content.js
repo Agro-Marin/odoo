@@ -1,10 +1,13 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { closestScrollableY, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { patch } from "@web/core/utils/patch";
 import { Interaction } from "@web/public/interaction";
 import { AnchorSlide } from "@website/interactions/anchor_slide";
+
+const log = makeLogger("website.snippet.s_table_of_content");
 
 const getSelector = (element) => {
     const hrefAttr = element.getAttribute("href");
@@ -74,6 +77,12 @@ export class TableOfContent extends Interaction {
             : this.scrollElement.ownerDocument.defaultView;
         this.tocElement = this.el.querySelector(".s_table_of_content_navbar");
         this.previousPosition = -1;
+        log.lifecycle("setup", () => ({
+            isHorizontal: this.isHorizontal,
+            scrollTargetIsWindow:
+                this.scrollTarget === this.scrollElement.ownerDocument.defaultView,
+            links: this.el.querySelectorAll("a.table_of_content_link").length,
+        }));
     }
 
     start() {
@@ -85,6 +94,7 @@ export class TableOfContent extends Interaction {
         );
 
         this.addListener(this.scrollTarget, "scroll", this.scrollBound);
+        log.lifecycle("start: scrollspy listener and menu callback attached");
     }
 
     updateTableOfContentNavbarPosition() {
@@ -103,6 +113,13 @@ export class TableOfContent extends Interaction {
         position += this.isHorizontal ? this.el.offsetHeight : 0;
 
         if (this.previousPosition !== position) {
+            log.logic(
+                "updateTableOfContentNavbarPosition: position changed, refreshing",
+                () => ({
+                    previous: this.previousPosition,
+                    position,
+                }),
+            );
             this.offset = position + 100;
             this.refresh();
             this.process();
@@ -119,6 +136,7 @@ export class TableOfContent extends Interaction {
     }
 
     refresh() {
+        const endRefresh = log.perf("refresh scan targets");
         this.offsets = [];
         this.targets = [];
         this.scrollHeight = this.getScrollHeight();
@@ -152,6 +170,7 @@ export class TableOfContent extends Interaction {
         for (let i = 0; i < this.offsets.length; i++) {
             this.offsets[i] += baseScrollTop;
         }
+        endRefresh(() => ({ links: targets.length, targets: this.targets.length }));
     }
 
     /**
@@ -162,6 +181,7 @@ export class TableOfContent extends Interaction {
         if (!element || !isVisible(element)) {
             return;
         }
+        log.logic("activate", () => ({ previous: this.activeTarget, target }));
         this.activeTarget = target;
         this.clear();
         const queries = ".nav-link, .list-group-item, .dropdown-item"
@@ -251,6 +271,9 @@ patch(AnchorSlide.prototype, {
                 ".s_table_of_content_navbar_sticky.s_table_of_content_horizontal_navbar",
             );
             if (tableOfContentNavbarEl) {
+                log.logic(
+                    "AnchorSlide computeExtraOffset: adding horizontal navbar height",
+                );
                 extraOffset += tableOfContentNavbarEl.getBoundingClientRect().height;
             }
         }

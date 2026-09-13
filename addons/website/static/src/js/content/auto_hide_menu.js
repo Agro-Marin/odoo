@@ -1,5 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { Dropdown } from "@web/libs/bootstrap";
+
+const log = makeLogger("website.content.auto_hide_menu");
 
 const BREAKPOINT_SIZES = { sm: "575", md: "767", lg: "991", xl: "1199", xxl: "1399" };
 
@@ -20,6 +23,7 @@ function withoutEditorTracking(fn) {
  */
 async function autoHideMenu(el, options) {
     if (!el) {
+        log.logic("skip: no menu element");
         return;
     }
     const navbar = el.closest(".navbar");
@@ -45,6 +49,12 @@ async function autoHideMenu(el, options) {
     );
 
     const isUserNavbar = el.parentElement.classList.contains("o_main_navbar");
+    log.lifecycle("autoHideMenu start", () => ({
+        breakpoint,
+        isNoHamburgerMenu,
+        isUserNavbar,
+        images: options.images.length,
+    }));
     const dropdownSubMenuClasses = ["show", "border-0", "position-static"];
     const dropdownToggleClasses = ["h-auto", "py-2", "text-secondary"];
     const autoMarginLeftRegex = /\bm[sx]?(?:-(?:sm|md|lg|xl|xxl))?-auto\b/;
@@ -60,7 +70,11 @@ async function autoHideMenu(el, options) {
     afterFontsloading.then(_adapt);
 
     if (options.images.length) {
+        const endImages = log.perf("wait for menu images", () => ({
+            images: options.images.length,
+        }));
         await _afterImagesLoading(options.images);
+        endImages();
         _adapt();
     }
 
@@ -90,6 +104,9 @@ async function autoHideMenu(el, options) {
     }
     observer.observe(el.parentElement);
     observer.observe(navbar);
+    log.lifecycle("resize observer attached", () => ({
+        observed: el.parentElement.children.length + 2,
+    }));
 
     function _restore() {
         if (!extraItemsToggle) {
@@ -130,6 +147,7 @@ async function autoHideMenu(el, options) {
     }
 
     function __adapt() {
+        const endAdapt = log.perf("adapt");
         if (options.loadingStyleClasses.length) {
             el.classList.add(...options.loadingStyleClasses);
         }
@@ -144,6 +162,7 @@ async function autoHideMenu(el, options) {
             (window.matchMedia(`(max-width: ${minSize}px)`).matches &&
                 !isNoHamburgerMenu)
         ) {
+            endAdapt(() => ({ folded: 0, reason: "hidden, open or hamburger width" }));
             return _endAutoMoreMenu();
         }
 
@@ -177,6 +196,7 @@ async function autoHideMenu(el, options) {
             );
         }
         if (maxWidth - menuItemsWidth >= -0.001) {
+            endAdapt(() => ({ folded: 0, items: nbItems, maxWidth, menuItemsWidth }));
             return _endAutoMoreMenu();
         }
 
@@ -220,6 +240,11 @@ async function autoHideMenu(el, options) {
             }
             dropdownMenu.appendChild(el);
         });
+        endAdapt(() => ({
+            folded: extraItems.length,
+            items: items.length,
+            maxWidth,
+        }));
         _endAutoMoreMenu();
     }
 
@@ -332,6 +357,7 @@ document.addEventListener("DOMContentLoaded", async () => {
     if (header) {
         const topMenu = header.querySelector(".top_menu");
         if (!topMenu) {
+            log.logic("skip: header has no .top_menu");
             return;
         }
         const unfoldable =
@@ -340,6 +366,9 @@ document.addEventListener("DOMContentLoaded", async () => {
             !topMenu.querySelector(`:scope > :not(${unfoldable})`) ||
             header.classList.contains("o_no_autohide_menu")
         ) {
+            log.logic("skip: nothing foldable or o_no_autohide_menu", () => ({
+                noAutohide: header.classList.contains("o_no_autohide_menu"),
+            }));
             topMenu.classList.remove("o_menu_loading");
             return;
         }

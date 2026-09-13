@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { markup } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { getTemplate } from "@web/core/templates";
 import { KeepLast } from "@web/core/utils/concurrency";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_searchbar");
 
 export class SearchBar extends Interaction {
     static selector = ".o_searchbar_form";
@@ -73,6 +76,12 @@ export class SearchBar extends Interaction {
                 this.options[decodeURIComponent(pathParts[indexNumber - 1])] = value;
             }
         }
+        log.lifecycle("setup", () => ({
+            searchType: this.searchType,
+            limit: this.limit,
+            order: this.order,
+            options: Object.keys(this.options),
+        }));
     }
 
     start() {
@@ -86,10 +95,14 @@ export class SearchBar extends Interaction {
     }
 
     destroy() {
+        log.lifecycle("destroy: closing dropdown");
         this.render(null);
     }
 
     async fetch() {
+        const endFetch = log.perf("fetch autocomplete", () => ({
+            searchType: this.searchType,
+        }));
         const res = await rpc("/website/snippet/autocomplete", {
             search_type: this.searchType,
             term: this.inputEl.value,
@@ -101,6 +114,11 @@ export class SearchBar extends Interaction {
             ),
             options: this.options,
         });
+        endFetch(() => ({
+            results: res.results.length,
+            resultsCount: res.results_count,
+            fuzzy: !!res.fuzzy_search,
+        }));
         const fieldNames = this.getFieldsNames();
         res.results.forEach((record) => {
             for (const fieldName of fieldNames) {
@@ -127,6 +145,11 @@ export class SearchBar extends Interaction {
             if (getTemplate(candidate)) {
                 template = candidate;
             }
+            log.pipeline("render: rendering results", () => ({
+                template,
+                results: results.length,
+                resultsCount: res["results_count"],
+            }));
             this.menuEl = this.renderAt(
                 template,
                 {
@@ -140,6 +163,11 @@ export class SearchBar extends Interaction {
                 this.el,
             )[0];
         }
+        log.logic("render: dropdown state", () => ({
+            open: !!res,
+            limit: this.limit,
+            hadMenu: !!prevMenuEl,
+        }));
         this.hasDropdown = !!res;
         prevMenuEl?.remove();
     }
@@ -157,9 +185,11 @@ export class SearchBar extends Interaction {
 
     async onInput() {
         if (!this.limit) {
+            log.logic("onInput: autocomplete disabled, limit is 0");
             return;
         }
         if (this.searchType === "all" && !this.inputEl.value.trim().length) {
+            log.logic("onInput: empty query on 'all', closing dropdown");
             this.render();
         } else {
             const res = await this.keepLast.add(this.waitFor(this.fetch()));
@@ -198,6 +228,7 @@ export class SearchBar extends Interaction {
                 }
                 break;
             case "Enter":
+                log.logic("onKeydown: Enter, disabling autocomplete for submit");
                 this.limit = 0;
                 break;
         }
@@ -208,8 +239,10 @@ export class SearchBar extends Interaction {
      */
     onSearch(ev) {
         if (this.inputEl.value) {
+            log.logic("onSearch: submitting, autocomplete disabled");
             this.limit = 0;
         } else {
+            log.logic("onSearch: cleared, closing dropdown");
             this.render();
             ev.preventDefault();
         }

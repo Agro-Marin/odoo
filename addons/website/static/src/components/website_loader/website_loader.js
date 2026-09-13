@@ -1,9 +1,13 @@
 /** @odoo-module native */
 import { Component, EventBus, markup, useEffect, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
 import { useBus, useService } from "@web/core/utils/hooks";
+
+const log = makeLogger("website.component.website_loader");
 
 export class WebsiteLoader extends Component {
     static props = {
@@ -12,6 +16,7 @@ export class WebsiteLoader extends Component {
     static template = "website.website_loader";
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
 
         const initialState = {
@@ -64,6 +69,10 @@ export class WebsiteLoader extends Component {
                         );
                     }
 
+                    log.pipeline("waiting messages prepared", () => ({
+                        features: selectedFeatures.length,
+                        messages: messagesToDisplay.length,
+                    }));
                     this.waitingMessages.splice(
                         0,
                         this.waitingMessages.length,
@@ -73,6 +82,7 @@ export class WebsiteLoader extends Component {
                     this.trackModules(selectedFeatures).catch(console.error);
 
                     return () => {
+                        log.lifecycle("trackModules timers cleared");
                         clearTimeout(this.trackModulesTimeout);
                         clearInterval(this.updateProgressInterval);
                     };
@@ -90,9 +100,11 @@ export class WebsiteLoader extends Component {
                         const nextMessage = this.waitingMessages[msgIndex];
                         Object.assign(this.currentWaitingMessage, nextMessage);
                         if (this.waitingMessages.length - 1 === msgIndex) {
+                            log.lifecycle("messages interval finished", { msgIndex });
                             clearInterval(messagesInterval);
                         }
                     }, 6000);
+                    log.lifecycle("messages interval started");
 
                     return () => clearInterval(messagesInterval);
                 }
@@ -103,6 +115,7 @@ export class WebsiteLoader extends Component {
         useEffect(
             (isVisible) => {
                 if (isVisible) {
+                    log.lifecycle("visible: beforeunload guard attached");
                     window.addEventListener(
                         "beforeunload",
                         this.showRefreshConfirmation,
@@ -111,9 +124,11 @@ export class WebsiteLoader extends Component {
                         !this.state.selectedFeatures ||
                         this.state.selectedFeatures.length === 0
                     ) {
+                        log.logic("no feature to install: plain progress bar");
                         this.initProgressBar();
                     }
                 } else {
+                    log.lifecycle("hidden: beforeunload guard removed");
                     window.removeEventListener(
                         "beforeunload",
                         this.showRefreshConfirmation,
@@ -133,6 +148,12 @@ export class WebsiteLoader extends Component {
 
         useBus(this.props.bus, "SHOW-WEBSITE-LOADER", (ev) => {
             const props = ev.detail;
+            log.lifecycle("SHOW-WEBSITE-LOADER", () => ({
+                title: props?.title,
+                features: props?.selectedFeatures?.length,
+                showWaitingMessages: props?.showWaitingMessages,
+                flag: props?.flag,
+            }));
             this.state.isVisible = true;
             for (const prop of [
                 "title",
@@ -148,8 +169,10 @@ export class WebsiteLoader extends Component {
         });
         useBus(this.props.bus, "HIDE-WEBSITE-LOADER", () => {
             if (!this.state.isVisible) {
+                log.logic("HIDE-WEBSITE-LOADER ignored: not visible");
                 return;
             }
+            log.lifecycle("HIDE-WEBSITE-LOADER");
             for (const key of Object.keys(initialState)) {
                 this.state[key] = initialState[key];
             }
@@ -158,6 +181,7 @@ export class WebsiteLoader extends Component {
             clearInterval(this.updateProgressInterval);
         });
         useBus(this.props.bus, "PREPARE-OUT-WEBSITE-LOADER", () => {
+            log.lifecycle("PREPARE-OUT-WEBSITE-LOADER");
             window.removeEventListener("beforeunload", this.showRefreshConfirmation);
         });
     }
@@ -174,6 +198,10 @@ export class WebsiteLoader extends Component {
             ? progressForAllModules / nbModulesToInstall
             : 0;
 
+        log.lifecycle("initProgressBar interval (re)started", () => ({
+            nbModulesToInstall,
+            installed: this.featuresInstallInfo.nbInstalled,
+        }));
         clearInterval(this.updateProgressInterval);
         this.updateProgressInterval = setInterval(() => {
             if (this.featuresInstallInfo.nbInstalled !== lastTotalInstalled) {
@@ -194,6 +222,9 @@ export class WebsiteLoader extends Component {
      * @param {integer[]} selectedFeatures
      */
     async trackModules(selectedFeatures) {
+        const endTrack = log.perf("track_installing_modules", () => ({
+            features: selectedFeatures.length,
+        }));
         const installInfo = await rpc(
             "/website/track_installing_modules",
             {
@@ -202,6 +233,10 @@ export class WebsiteLoader extends Component {
             },
             { silent: true },
         );
+        endTrack(() => ({
+            nbInstalled: installInfo.nbInstalled,
+            total: installInfo.total,
+        }));
         if (
             !this.featuresInstallInfo.total ||
             this.featuresInstallInfo.nbInstalled !== installInfo.nbInstalled
@@ -210,6 +245,10 @@ export class WebsiteLoader extends Component {
         }
         this.initProgressBar();
         if (this.featuresInstallInfo.nbInstalled !== this.featuresInstallInfo.total) {
+            log.logic("trackModules not done: poll again in 1s", () => ({
+                nbInstalled: this.featuresInstallInfo.nbInstalled,
+                total: this.featuresInstallInfo.total,
+            }));
             this.trackModulesTimeout = setTimeout(
                 () => this.trackModules(selectedFeatures),
                 1000,
@@ -283,6 +322,10 @@ export class WebsiteLoader extends Component {
                 return true;
             }
         });
+        log.pipeline("getWaitingMessages", () => ({
+            selected: selectedFeatures.length,
+            messages: messagesList.length,
+        }));
         return messagesList;
     }
 
@@ -291,6 +334,7 @@ export class WebsiteLoader extends Component {
      */
     showRefreshConfirmation = (ev) => {
         if (this.state.isVisible) {
+            log.logic("beforeunload blocked: loader visible");
             ev.preventDefault();
             ev.returnValue = "";
             return ev.returnValue;
@@ -298,6 +342,7 @@ export class WebsiteLoader extends Component {
     };
 
     close() {
+        log.logic("close button");
         this.website.hideLoader();
     }
 }

@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 
 import { SearchbarOption } from "./searchbar_option.js";
+
+const log = makeLogger("website.builder.plugin.searchbar_option");
 
 /** @typedef {import("plugins").TranslatedString} TranslatedString */
 
@@ -96,6 +99,13 @@ export class SetSearchTypeAction extends BaseSearchBarAction {
                     item.orderBy === searchOrderByInputEl.value,
             )
         ) {
+            log.logic(
+                "SetSearchTypeAction reset order: current order unavailable",
+                () => ({
+                    previousOrderBy: searchOrderByInputEl.value,
+                    formAction,
+                }),
+            );
             editingElement.dataset.orderBy = this.defaultSearchType;
             searchOrderByInputEl.value = this.defaultSearchType;
         }
@@ -108,6 +118,10 @@ export class SetSearchTypeAction extends BaseSearchBarAction {
                 delete editingElement.dataset[item.dataAttribute];
             }
         }
+        log.pipeline("SetSearchTypeAction apply", () => ({
+            formAction,
+            displayed: [...displayDataAttributes],
+        }));
         for (const dataAttribute of displayDataAttributes) {
             editingElement.dataset[dataAttribute] = "true";
         }
@@ -116,6 +130,7 @@ export class SetSearchTypeAction extends BaseSearchBarAction {
 export class SetOrderByAction extends BaseSearchBarAction {
     static id = "setOrderBy";
     apply({ editingElement, value: orderBy }) {
+        log.pipeline("SetOrderByAction apply", () => ({ orderBy }));
         this.getSearchOrderByInputEl(editingElement).value = orderBy;
     }
 }
@@ -136,6 +151,7 @@ export class SetSearchbarStyleAction extends BaseSearchBarAction {
     }
     apply({ editingElement, params: { mainParam: style } }) {
         const isLight = style === "light";
+        log.pipeline("SetSearchbarStyleAction apply", () => ({ style }));
         const searchButtonEl = this.getSearchButtonEl(editingElement);
         editingElement.classList.toggle("border-0", isLight);
         editingElement.classList.toggle("bg-light", isLight);
@@ -156,6 +172,10 @@ export class SetNonEmptyDataAttributeAction extends BuilderAction {
         return editingElement.dataset[attributeName] === value;
     }
     apply({ editingElement, params: { mainParam: attributeName } = {}, value }) {
+        log.pipeline("SetNonEmptyDataAttributeAction apply", () => ({
+            attributeName,
+            empty: !value,
+        }));
         if (value) {
             editingElement.dataset[attributeName] = value;
         } else {

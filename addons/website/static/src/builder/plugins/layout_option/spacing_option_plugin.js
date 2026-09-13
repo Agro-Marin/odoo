@@ -6,7 +6,10 @@ import {
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { isBlock } from "@html_editor/utils/blocks";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.spacing_option");
 
 class SpacingOptionPlugin extends Plugin {
     static id = "SpacingOption";
@@ -45,10 +48,16 @@ class SpacingOptionPlugin extends Plugin {
     }
 
     onCloned({ cloneEl }) {
+        log.pipeline("onCloned remove grid previews", () => ({
+            count: cloneEl.querySelectorAll(".o_we_grid_preview").length,
+        }));
         this.removeGridPreviews(cloneEl);
     }
 
     cleanForSave({ root }) {
+        log.pipeline("cleanForSave remove grid previews", () => ({
+            count: root.querySelectorAll(".o_we_grid_preview").length,
+        }));
         this.removeGridPreviews(root);
     }
 }
@@ -60,8 +69,12 @@ export class SetGridSpacingAction extends StyleAction {
     apply({ editingElement: rowEl }) {
         let gridPreviewEl = rowEl.querySelector(".o_we_grid_preview");
         if (gridPreviewEl) {
+            log.logic("SetGridSpacingAction apply: replacing pending grid preview");
             gridPreviewEl.remove();
         }
+        log.pipeline("SetGridSpacingAction apply", () => ({
+            className: rowEl.className,
+        }));
         super.apply(...arguments);
         gridPreviewEl = addBackgroundGrid(rowEl, 0);
         gridPreviewEl.classList.add("o_we_grid_preview");

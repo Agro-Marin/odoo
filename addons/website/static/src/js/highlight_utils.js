@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { descendants } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { memoize } from "@web/core/utils/functions";
+
+const log = makeLogger("website.utils.highlight_utils");
 
 export const textHighlightFactory = {
     underline: (params) => drawPath({ ...params, mode: "line" }),
@@ -263,6 +266,7 @@ export const textHighlightFactory = {
  * @param {String} highlightID
  */
 export function makeHighlightSvgs(highlightEl, highlightID) {
+    const endSvgs = log.perf("makeHighlightSvgs", () => ({ highlightID }));
     const style = window.getComputedStyle(highlightEl);
     if (!style.getPropertyValue("--text-highlight-width")) {
         highlightEl.style.setProperty(
@@ -318,10 +322,22 @@ export function makeHighlightSvgs(highlightEl, highlightID) {
             svg.style.right = "0px";
         }
     }
+    endSvgs(() => ({
+        textNodes: textNodes.length,
+        rects: rects.length,
+        lines: finalRects.length,
+        svgs: svgs.length,
+        inPreviewIframe,
+        rtl,
+    }));
     return svgs;
 }
 export function applyTextHighlight(highlightEl, highlightID) {
     const svgs = makeHighlightSvgs(highlightEl, highlightID);
+    log.pipeline("applyTextHighlight: appending svgs", () => ({
+        highlightID,
+        svgs: svgs.length,
+    }));
     for (const svg of svgs) {
         highlightEl.appendChild(svg);
         adaptHighlightPosition(highlightEl, svg);
@@ -345,6 +361,9 @@ export function adaptHighlightPosition(highlightEl, svg) {
  * @param {HTMLElement} highlightEl
  */
 export function removeTextHighlight(highlightEl) {
+    log.pipeline("removeTextHighlight", () => ({
+        svgs: highlightEl.querySelectorAll(":scope svg").length,
+    }));
     for (const svg of highlightEl.querySelectorAll(":scope svg")) {
         svg.remove();
     }

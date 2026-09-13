@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { isCSSColor } from "@web/core/utils/format/colors";
 import { Interaction } from "@web/public/interaction";
 import { verifyHttpsUrl } from "@website/utils/misc";
+
+const log = makeLogger("website.snippet.s_countdown");
 
 export class Countdown extends Interaction {
     static selector = ".s_countdown";
@@ -28,6 +31,9 @@ export class Countdown extends Interaction {
         this.display = this.el.dataset.display;
 
         if (!this.display && this.el.dataset.bsDisplay) {
+            log.logic("setup: migrating legacy bsDisplay to display", () => ({
+                bsDisplay: this.el.dataset.bsDisplay,
+            }));
             this.display = this.el.dataset.bsDisplay;
             delete this.el.dataset.bsDisplay;
             this.el.dataset.display = this.display;
@@ -55,6 +61,13 @@ export class Countdown extends Interaction {
         this.render();
 
         this.setInterval = setInterval(this.render.bind(this), 1000);
+        log.lifecycle("setup: tick interval started", () => ({
+            layout: this.layout,
+            display: this.display,
+            endAction: this.endAction,
+            delta: this.getDelta(),
+            units: this.timeDiff.length,
+        }));
     }
 
     destroy() {
@@ -63,6 +76,9 @@ export class Countdown extends Interaction {
             ?.classList.remove("d-none");
         clearInterval(this.setInterval);
         window.removeEventListener("resize", this.onResize);
+        log.lifecycle("destroy: tick interval cleared", () => ({
+            resizeListener: !!this.onResize,
+        }));
     }
 
     /**
@@ -77,12 +93,17 @@ export class Countdown extends Interaction {
     }
 
     handleEndCountdownAction() {
+        log.logic("handleEndCountdownAction", () => ({
+            endAction: this.endAction,
+            hereBeforeTimerEnds: this.hereBeforeTimerEnds,
+        }));
         if (this.endAction === "redirect") {
             const redirectUrl = verifyHttpsUrl(this.el.dataset.redirectUrl) || "/";
             if (this.hereBeforeTimerEnds) {
                 this.waitForTimeout(() => (window.location = redirectUrl), 500);
             } else {
                 if (!this.el.querySelector(".s_countdown_end_redirect_message")) {
+                    log.logic("handleEndCountdownAction: rendering redirect message");
                     const container = this.el.querySelector(
                         ":scope > .container, :scope > .container-fluid, :scope > .o_container_small",
                     );
@@ -170,6 +191,11 @@ export class Countdown extends Interaction {
                 nbSeconds: 1,
             });
         }
+        log.pipeline("initTimeDiff: units built", () => ({
+            delta,
+            onlyOneUnit: this.onlyOneUnit,
+            units: this.timeDiff.map((unit) => unit.nbSeconds),
+        }));
     }
 
     updateTimediff() {
@@ -202,6 +228,12 @@ export class Countdown extends Interaction {
 
     render() {
         if (this.onlyOneUnit && this.getDelta() < this.timeDiff[0].nbSeconds) {
+            log.logic(
+                "render: single unit dropped below its size, rebuilding units",
+                () => ({
+                    nbSeconds: this.timeDiff[0].nbSeconds,
+                }),
+            );
             this.el.querySelector(".s_countdown_canvas_flex").remove();
             this.initTimeDiff();
         }
@@ -270,12 +302,14 @@ export class Countdown extends Interaction {
         if (this.isFinished) {
             clearInterval(this.setInterval);
             if (!this.endActionDone) {
+                log.lifecycle("render: countdown finished, tick interval cleared");
                 this.endActionDone = true;
                 this.handleEndCountdownAction();
             }
             if (!this.onResize) {
                 this.onResize = this.throttled(this.render);
                 window.addEventListener("resize", this.onResize);
+                log.lifecycle("render: resize listener attached after finish");
             }
         }
     }

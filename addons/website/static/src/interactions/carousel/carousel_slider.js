@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { onceAllImagesLoaded } from "@website/utils/images";
+
+const log = makeLogger("website.interaction.carousel_slider");
 
 export class CarouselSlider extends Interaction {
     static selector = ".carousel";
@@ -77,9 +80,23 @@ export class CarouselSlider extends Interaction {
         } else if (!this.hasInterval) {
             this.el.dataset.bsInterval = "1000";
         }
+        log.pipeline("CarouselSlider setup", () => ({
+            id: this.el.id,
+            hasInner: !!this.carouselInnerEl,
+            items: this.carouselItemEls?.length,
+            scrollMode: this.options.scrollMode,
+            itemsPerSlide: this.options.itemsPerSlide,
+            hasInterval: this.hasInterval,
+            ride: this.el.dataset.bsRide,
+            interval: this.el.dataset.bsInterval,
+        }));
     }
 
     start() {
+        log.lifecycle("CarouselSlider start", () => ({
+            id: this.el.id,
+            carouselOptions: this.carouselOptions,
+        }));
         this.computeMaxHeight();
         this.updateContent();
         const carouselBS = Carousel.getOrCreateInstance(this.el, this.carouselOptions);
@@ -88,12 +105,18 @@ export class CarouselSlider extends Interaction {
         const observer = new IntersectionObserver((entries) => {
             entries.forEach((entry) => {
                 if (entry.isIntersecting) {
+                    log.lifecycle("CarouselSlider visible: observer released", () => ({
+                        id: this.el.id,
+                    }));
                     this.loadItemsToAppear();
                     observer.unobserve(this.el);
                 }
             });
         });
         observer.observe(this.el);
+        log.lifecycle("CarouselSlider intersection observer attached", () => ({
+            id: this.el.id,
+        }));
         this.registerCleanup(() => observer.disconnect());
     }
 
@@ -116,11 +139,19 @@ export class CarouselSlider extends Interaction {
      */
     onSlideCarousel(ev) {
         if (!this.carouselInnerEl) {
+            log.logic("CarouselSlider onSlide: no .carousel-inner", () => ({
+                id: this.el.id,
+            }));
             return;
         }
         const imageEls = [...this.carouselInnerEl.querySelectorAll("img")];
         const isLoading = imageEls.some((el) => el.loading !== "lazy" && !el.complete);
         if (isLoading) {
+            log.logic("CarouselSlider onSlide: deferred until images load", () => ({
+                id: this.el.id,
+                to: ev.to,
+                images: imageEls.length,
+            }));
             ev.preventDefault();
             onceAllImagesLoaded(this.carouselInnerEl).then(() => {
                 Carousel.getOrCreateInstance(this.el).to(ev.to);
@@ -170,6 +201,9 @@ export class CarouselSlider extends Interaction {
      */
     loadItemsToAppear(nbItemsToLoad = 1) {
         if (!this.carouselInnerEl) {
+            log.logic("CarouselSlider loadItemsToAppear: no .carousel-inner", () => ({
+                id: this.el.id,
+            }));
             return;
         }
         const index = this.carouselItemEls.findIndex((el) =>
@@ -204,6 +238,13 @@ export class CarouselSlider extends Interaction {
                 .reverse();
         }
 
+        log.pipeline("CarouselSlider loadItemsToAppear", () => ({
+            id: this.el.id,
+            activeItemIndex,
+            items: this.carouselItemEls.length,
+            next: nextItemElsToLoad.length,
+            prev: prevItemElsToLoad.length,
+        }));
         this.prefetchImages(nextItemElsToLoad.concat(prevItemElsToLoad));
     }
 

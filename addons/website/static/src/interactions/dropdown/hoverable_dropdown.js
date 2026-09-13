@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { SIZES, utils as uiUtils } from "@web/ui/viewport";
+
+const log = makeLogger("website.interaction.hoverable_dropdown");
 
 export class HoverableDropdown extends Interaction {
     static selector = "header.o_hoverable_dropdown";
@@ -25,6 +28,9 @@ export class HoverableDropdown extends Interaction {
     setup() {
         this.dropdownMenuEls = this.el.querySelectorAll(".dropdown-menu");
         this.breakpointSize = SIZES.LG;
+        log.lifecycle("HoverableDropdown setup", () => ({
+            menus: this.dropdownMenuEls.length,
+        }));
     }
 
     start() {
@@ -46,6 +52,12 @@ export class HoverableDropdown extends Interaction {
             !dropdownToggleEl ||
             dropdownEl.closest(".o_extra_menu_items")
         ) {
+            log.logic("HoverableDropdown updateDropdownVisibility: skip", () => ({
+                show,
+                isSmall: this.isSmall(),
+                hasToggle: !!dropdownToggleEl,
+                inExtraMenu: !!dropdownEl.closest(".o_extra_menu_items"),
+            }));
             return;
         }
         const dropdown = Dropdown.getOrCreateInstance(dropdownToggleEl);

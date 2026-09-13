@@ -12,6 +12,8 @@ import {
     useState,
 } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { jsToPyLocale, pyToJsLocale } from "@web/core/l10n/utils";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
@@ -21,6 +23,8 @@ import { useAutofocus, useService } from "@web/core/utils/hooks";
 import wUtils from "@website/js/utils";
 
 import { WebsiteDialog } from "./dialog.js";
+
+const log = makeLogger("website.dialog.seo");
 
 const WORD_SEPARATORS_REGEX =
     "([\\u2000-\\u206F\\u2E00-\\u2E7F'!\"#\\$%&\\(\\)\\*\\+,\\-\\.\\/:;<=>\\?¿¡@\\[\\]\\^_`\\{\\|\\}~\\s]+|^|$)";
@@ -63,7 +67,13 @@ const LINK_CHECK_NO_CORS_OPTIONS = { ...LINK_CHECK_BASE_OPTIONS, mode: "no-cors"
 
 const inspectLink = async (url, options) => {
     try {
+        const endFetch = log.perf("inspectLink fetch", () => ({
+            url,
+            mode: options.mode,
+            redirect: options.redirect,
+        }));
         const response = await fetch(url, options);
+        endFetch(() => ({ status: response.status, type: response.type }));
         if (response.type === "opaqueredirect") {
             return "external_redirect";
         }
@@ -79,16 +89,19 @@ const inspectLink = async (url, options) => {
 const checkLinkStatus = async (url, { useNoCorsFallback = false } = {}) => {
     let status = await inspectLink(url, LINK_CHECK_BASE_OPTIONS);
     if (status === "failed") {
+        log.logic("checkLinkStatus fallback: manual redirect", { url });
         const fallbackStatus = await inspectLink(url, LINK_CHECK_MANUAL_OPTIONS);
         status = fallbackStatus === "external_redirect" ? "ok" : fallbackStatus;
     }
     if (useNoCorsFallback && status === "failed") {
+        log.logic("checkLinkStatus fallback: no-cors", { url });
         status = await inspectLink(url, LINK_CHECK_NO_CORS_OPTIONS);
     }
     return status;
 };
 
 const getSeo = async (self, onlyKeywords = false) => {
+    const endSeo = log.perf("getSeo", { onlyKeywords });
     const pageTextContentEl =
         self.website.pageDocument.documentElement.querySelector("#wrap, main, body");
     const lang = self.state.language || "en";
@@ -168,6 +181,10 @@ const getSeo = async (self, onlyKeywords = false) => {
             .filter((entry) => entry[1] > 0)
             .map((entry) => entry[0])
             .slice(0, 7);
+        log.pipeline("getSeo keywords ranked", () => ({
+            candidates: Object.keys(wordCounts).length,
+            kept: sortedKeywords.length,
+        }));
         return sortedKeywords;
     };
 
@@ -179,6 +196,9 @@ const getSeo = async (self, onlyKeywords = false) => {
             (el) => isVisible(el) && el.innerText.trim(),
         );
         if (subtitlesEls.length) {
+            log.logic("getSeo description from subtitle", () => ({
+                candidates: subtitlesEls.length,
+            }));
             return subtitlesEls[0].innerText.trim();
         }
         let headersEls = pageTextContentEl.querySelectorAll("h2,h3");
@@ -186,14 +206,19 @@ const getSeo = async (self, onlyKeywords = false) => {
             (el) => isVisible(el) && el.innerText.trim().replace(/[\W\d]/g, ""),
         );
         if (headersEls.length) {
+            log.logic("getSeo description from headers", () => ({
+                headers: headersEls.length,
+            }));
             return headersEls
                 .map((el) => el.innerText.trim().replace(/\s+/g, " "))
                 .join(", ");
         }
+        log.logic("getSeo description fallback: title/description");
         return self.seoContext.title || self.seoContext.description || "";
     };
 
     const keywords = extractKeywords();
+    log.logic("getSeo replace keywords", () => ({ found: keywords.length }));
     if (keywords.length) {
         self.seoContext.keywords = keywords;
     }
@@ -201,6 +226,7 @@ const getSeo = async (self, onlyKeywords = false) => {
         self.seoContext.title = htmlToTextContentInline(self.seoContext.defaultTitle);
         self.seoContext.description = extractDescription();
     }
+    endSeo(() => ({ keywords: keywords.length }));
 };
 
 class MetaImage extends Component {
@@ -222,6 +248,7 @@ class ImageSelector extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.dialogs = useService("dialog");
 
@@ -256,6 +283,9 @@ class ImageSelector extends Component {
                 .map(({ src }) => this.getImagePathname(src))
                 .includes(this.getImagePathname(this.seoContext.metaImage))
         ) {
+            log.logic("ImageSelector current meta image is custom", () => ({
+                src: seoContext.metaImage,
+            }));
             this.state.images.push({
                 src: this.seoContext.metaImage,
                 active: true,
@@ -264,6 +294,7 @@ class ImageSelector extends Component {
         }
 
         if (!this.activeMetaImage) {
+            log.logic("ImageSelector no active image: select first");
             this.selectImage(this.state.images[0].src);
         }
     }
@@ -282,6 +313,7 @@ class ImageSelector extends Component {
     }
 
     selectImage(src) {
+        log.logic("ImageSelector selectImage", { src });
         this.state.images = this.state.images.map((img) => {
             img.active = img.src === src;
             return img;
@@ -290,6 +322,7 @@ class ImageSelector extends Component {
     }
 
     openMediaDialog() {
+        log.lifecycle("ImageSelector open MediaDialog");
         this.dialogs.add(MediaDialog, {
             onlyImages: true,
             resModel: "ir.ui.view",
@@ -305,6 +338,10 @@ class ImageSelector extends Component {
                     }
                     return img;
                 });
+                log.logic("ImageSelector media saved", () => ({
+                    src,
+                    existing: Boolean(existingImage),
+                }));
                 if (!existingImage) {
                     this.state.images.push({
                         src: src,
@@ -328,6 +365,7 @@ class Keyword extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
 
         this.seoContext = useState(seoContext);
@@ -360,10 +398,15 @@ class Keyword extends Component {
         };
 
         onMounted(async () => {
+            const endSuggest = log.perf("Keyword seo_suggest", () => ({
+                keyword: this.props.keyword,
+                language: this.props.language,
+            }));
             const suggestions = await rpc("/website/seo_suggest", {
                 lang: jsToPyLocale(this.props.language),
                 keywords: this.props.keyword,
             });
+            endSuggest();
             const regex = new RegExp(
                 WORD_SEPARATORS_REGEX +
                     escapeRegExp(this.props.keyword) +
@@ -377,6 +420,10 @@ class Keyword extends Component {
                         .filter(Boolean),
                 ),
             ];
+            log.pipeline("Keyword suggestions parsed", () => ({
+                keyword: this.props.keyword,
+                suggestions: this.state.suggestions.length,
+            }));
         });
     }
 
@@ -434,6 +481,7 @@ class MetaKeywords extends Component {
     static props = {};
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
 
         this.seoContext = useState(seoContext);
@@ -446,12 +494,15 @@ class MetaKeywords extends Component {
         this.maxKeywords = 10;
 
         onWillStart(async () => {
+            const endLanguages = log.perf("MetaKeywords get_languages");
             this.languages = await rpc("/website/get_languages");
+            endLanguages(() => ({ languages: this.languages?.length }));
             this.state.language = this.getLanguage();
         });
     }
 
     provideKeywords() {
+        log.logic("MetaKeywords provideKeywords");
         getSeo(this, true);
     }
 
@@ -473,6 +524,11 @@ class MetaKeywords extends Component {
 
     addKeyword(keyword) {
         keyword = keyword.replaceAll(/,\s*/gi, " ").trim();
+        log.logic("MetaKeywords addKeyword", () => ({
+            keyword,
+            full: seoContext.keywords.length >= this.maxKeywords,
+            duplicate: seoContext.keywords.includes(keyword),
+        }));
         if (keyword && !this.isFull && !this.seoContext.keywords.includes(keyword)) {
             this.seoContext.keywords.push(keyword);
             this.state.keyword = "";
@@ -480,6 +536,7 @@ class MetaKeywords extends Component {
     }
 
     removeKeyword(keyword) {
+        log.logic("MetaKeywords removeKeyword", { keyword });
         this.seoContext.keywords = this.seoContext.keywords.filter(
             (kw) => kw !== keyword,
         );
@@ -496,6 +553,7 @@ class SEOPreview extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.seoContext = useState(seoContext);
         this.logo = `/web/image/website/${encodeURIComponent(this.website.currentWebsite.id)}/logo`;
@@ -580,6 +638,7 @@ class TitleDescription extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.seoContext = useState(seoContext);
         this.website = useService("website");
         useAutofocus();
@@ -667,6 +726,7 @@ class TitleDescription extends Component {
     }
 
     autoFill() {
+        log.logic("TitleDescription autoFill");
         getSeo(this);
     }
 
@@ -687,6 +747,7 @@ export class BrokenLink extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.urlInputRef = useRef("url-input");
         this.link = this.props.link;
@@ -698,8 +759,10 @@ export class BrokenLink extends Component {
         useEffect(
             (input) => {
                 if (!input) {
+                    log.logic("BrokenLink no url input: skip autocomplete");
                     return;
                 }
+                log.lifecycle("BrokenLink autocompleteWithPages attached");
                 const options = {
                     body: this.website.pageDocument.body,
                     position: "bottom-fit",
@@ -727,23 +790,37 @@ export class BrokenLink extends Component {
             const base = link.newLink.startsWith("/") ? window.origin : undefined;
             url = new URL(link.newLink, base);
         } catch {
+            log.logic("BrokenLink modifyLink invalid URL", () => ({
+                newLink: link.newLink,
+            }));
             url = null;
             broken = true;
         }
         if (url?.protocol === "http:" || url?.protocol === "https:") {
             const sameOrigin = url.origin === window.location.origin;
             const targetUrl = sameOrigin ? url.pathname + url.search : url.href;
+            const endCheck = log.perf("BrokenLink checkLinkStatus", {
+                targetUrl,
+                sameOrigin,
+            });
             const status = await checkLinkStatus(targetUrl, {
                 useNoCorsFallback: !sameOrigin,
             });
+            endCheck({ status });
             broken = status === "error" || status === "failed";
         }
+        log.logic("BrokenLink modifyLink result", () => ({
+            newLink: link.newLink,
+            protocol: url?.protocol,
+            broken,
+        }));
         link.broken = broken;
         link.validLink = !broken ? link.newLink : null;
         this.state.checkingLink = false;
     }
 
     removeLink(link) {
+        log.logic("BrokenLink removeLink", () => ({ oldLink: link.oldLink }));
         link.newLink = "";
         link.broken = false;
         link.remove = true;
@@ -768,6 +845,7 @@ export class SeoChecks extends Component {
     static props = {};
 
     async setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.seoContext = useState(seoContext);
         const {
@@ -783,7 +861,9 @@ export class SeoChecks extends Component {
         });
         this.imgUpdated = this.imgUpdated.bind(this);
         onWillStart(async () => {
+            const endAlts = log.perf("SeoChecks getAltAttributes");
             this.state.altAttributes = await this.getAltAttributes();
+            endAlts();
             this.seoContext.updatedAlts = [];
         });
         onMounted(() => {
@@ -792,6 +872,7 @@ export class SeoChecks extends Component {
     }
 
     imgUpdated(img) {
+        log.logic("SeoChecks alt updated", () => ({ src: img.src }));
         img.updated = true;
         this.seoContext.updatedAlts = this.state.altAttributes.filter(
             (img) => img.updated,
@@ -826,8 +907,14 @@ export class SeoChecks extends Component {
             const [model, id, field, type] = entry.split("||");
             return { model, id: parseInt(id), field, type };
         });
+        log.pipeline("SeoChecks alt records collected", () => ({
+            images: imgEls.length,
+            records: models.length,
+        }));
 
+        const endRpc = log.perf("get_alt_images", () => ({ records: models.length }));
         const results = await rpc("/website/get_alt_images", { models });
+        endRpc();
 
         return JSON.parse(results);
     }
@@ -835,6 +922,7 @@ export class SeoChecks extends Component {
     async getBrokenLinks() {
         this.state.checkingLinks = true;
         this.state.counterLinks = 1;
+        const endScan = log.perf("SeoChecks scan links");
         const hrefEls = this.website.pageDocument.documentElement.querySelectorAll(
             "#wrapwrap a[href]:not(.oe_unremovable)",
         );
@@ -909,8 +997,12 @@ export class SeoChecks extends Component {
             seen.add(key);
             return true;
         });
+        endScan(() => ({ anchors: hrefEls.length, links: links.length }));
         this.state.totalLinks = links.length;
         const brokenLinks = [];
+        const endCheck = log.perf("SeoChecks check links", () => ({
+            links: links.length,
+        }));
         const promises = links.map(async (link) => {
             const status = await checkLinkStatus(link.link);
 
@@ -921,6 +1013,7 @@ export class SeoChecks extends Component {
             this.state.counterLinks++;
         });
         await Promise.all(promises);
+        endCheck(() => ({ broken: brokenLinks.length }));
         this.state.checkingLinks = false;
         this.state.checkedLinks = true;
         brokenLinks.sort((a, b) => a.position - b.position);
@@ -954,6 +1047,7 @@ export class OptimizeSEODialog extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.dialogs = useService("dialog");
         this.orm = useService("orm");
@@ -966,21 +1060,35 @@ export class OptimizeSEODialog extends Component {
         onWillStart(async () => {
             seoContext.updatedAlts = [];
             seoContext.brokenLinks = [];
+            const endIframe = log.perf("OptimizeSEODialog waitForIframe");
             await this.waitForIframe();
+            endIframe();
             const {
                 metadata: { mainObject, seoObject, path },
             } = this.website.currentWebsite;
             this.object = seoObject || mainObject;
+            const endData = log.perf("OptimizeSEODialog get_seo_data", () => ({
+                model: this.object.model,
+                id: this.object.id,
+                seoObject: Boolean(seoObject),
+            }));
             this.data = await rpc("/website/get_seo_data", {
                 res_id: this.object.id,
                 res_model: this.object.model,
             });
+            endData();
 
             this.canEditSeo = this.data.can_edit_seo;
             this.canEditDescription =
                 this.canEditSeo && "website_meta_description" in this.data;
             this.canEditTitle = this.canEditSeo && "website_meta_title" in this.data;
             this.canEditUrl = this.canEditSeo && "seo_name" in this.data;
+            log.logic("OptimizeSEODialog edit rights", () => ({
+                seo: this.canEditSeo,
+                description: this.canEditDescription,
+                title: this.canEditTitle,
+                url: this.canEditUrl,
+            }));
             seoContext.title = this.canEditTitle && this.data.website_meta_title;
 
             this.isIndexed =
@@ -1011,6 +1119,12 @@ export class OptimizeSEODialog extends Component {
 
             this.canEditKeywords = "website_meta_keywords" in this.data;
             seoContext.keywords = this.getMeta({ name: "keywords" });
+            log.pipeline("OptimizeSEODialog page meta read", () => ({
+                keywords: seoContext.keywords.length,
+                pageImages: this.pageImages.length,
+                hasMetaImage: Boolean(seoContext.metaImage),
+                canEditKeywords: this.canEditKeywords,
+            }));
         });
     }
 
@@ -1020,8 +1134,12 @@ export class OptimizeSEODialog extends Component {
                 ".o_iframe_container > iframe:not(.o_ignore_in_tour)",
             );
             if (!iframeEl || iframeEl.contentDocument?.readyState === "complete") {
+                log.logic("waitForIframe: nothing to wait", () => ({
+                    iframe: Boolean(iframeEl),
+                }));
                 return resolve();
             }
+            log.lifecycle("waitForIframe: load listener attached");
             iframeEl.addEventListener("load", resolve, { once: true });
         });
     }
@@ -1076,12 +1194,18 @@ export class OptimizeSEODialog extends Component {
         if (this.canEditSeo && "website_meta_og_img" in this.data) {
             data.website_meta_og_img = seoContext.metaImage;
         }
+        const endWrite = log.perf("OptimizeSEODialog save write", () => ({
+            model: this.object.model,
+            id: this.object.id,
+            fields: Object.keys(data),
+        }));
         await this.orm.write(this.object.model, [this.object.id], data, {
             context: {
                 lang: this.website.currentWebsite.metadata.lang,
                 website_id: this.website.currentWebsite.id,
             },
         });
+        endWrite();
 
         const rpcCalls = [];
         if (
@@ -1103,7 +1227,19 @@ export class OptimizeSEODialog extends Component {
             );
         }
 
+        log.pipeline("OptimizeSEODialog save follow-up rpcs", () => ({
+            rpcs: rpcCalls.length,
+            brokenLinks: seoContext.brokenLinks.length,
+            updatedAlts: seoContext.updatedAlts?.length,
+        }));
+        const endFollowUp = log.perf("OptimizeSEODialog save follow-up", () => ({
+            rpcs: rpcCalls.length,
+        }));
         await Promise.all(rpcCalls);
+        endFollowUp();
+        log.logic("OptimizeSEODialog save: go to website", () => ({
+            seoNameChanged: seoContext.seoName !== this.previousSeoName,
+        }));
 
         this.website.goToWebsite({
             path: replaceLastSlugOccurrence(

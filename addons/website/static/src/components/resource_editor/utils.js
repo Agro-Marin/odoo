@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { formatXML } from "@web/core/utils/dom/xml";
+
+const log = makeLogger("website.component.resource_editor.utils");
 
 const MAPPING = {
     "{": "}",
@@ -25,6 +28,10 @@ export function checkSCSS(scss) {
             stack.push(scss[i]);
         } else if (CLOSINGS.includes(scss[i])) {
             if (stack.pop() !== MAPPING[scss[i]]) {
+                log.logic("checkSCSS unexpected closing", () => ({
+                    line,
+                    char: scss[i],
+                }));
                 return {
                     isValid: false,
                     error: {
@@ -38,6 +45,7 @@ export function checkSCSS(scss) {
         }
     }
     if (stack.length > 0) {
+        log.logic("checkSCSS unclosed", () => ({ line, open: stack.length }));
         return {
             isValid: false,
             error: {
@@ -85,6 +93,10 @@ export function checkXML(xml) {
             el.after(codeEls[i]);
         });
         const lineMatch = errorEl.innerHTML.match(/[Ll]ine[^\d]+(\d+)/);
+        log.logic("checkXML parser error", () => ({
+            line: lineMatch?.[1],
+            sourceTexts: sourceTextEls.length,
+        }));
         return {
             isValid: false,
             error: {
@@ -103,6 +115,7 @@ export function checkXML(xml) {
  */
 export function formatXMLSafe(xml, indent = 4) {
     if (/<script(?: [^>]*)?>[^<][\s\S]*<\/script>/i.test(xml)) {
+        log.logic("formatXMLSafe skip: inline script");
         return xml;
     }
     return formatXML(xml, indent);

@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { useSortable } from "@web/core/utils/dnd";
+
+const log = makeLogger("website.builder.option.social_media_links");
 
 export class SocialMediaLinks extends BaseOptionComponent {
     static template = "website.SocialMediaLinks";
@@ -10,12 +14,17 @@ export class SocialMediaLinks extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
 
         const { getRecordedSocialMediaNames, reorderSocialMediaLink } =
             this.dependencies.socialMediaOptionPlugin;
 
         onWillStart(async () => {
+            const endLoad = log.perf(
+                "SocialMediaLinks load recorded social media names",
+            );
             this.recordedSocialMediaNames = await getRecordedSocialMediaNames();
+            endLoad(() => ({ names: this.recordedSocialMediaNames?.length }));
         });
         this.rootRef = useRef("root");
         this.domState = useDomState((editingElement) => ({
@@ -49,6 +58,9 @@ export class SocialMediaLinks extends BaseOptionComponent {
 
                 const oldIdx = this.ids.findIndex((id) => id === elId);
                 if (oldIdx < 0) {
+                    log.logic("SocialMediaLinks drop ignored: unknown row", () => ({
+                        elId,
+                    }));
                     return;
                 }
                 this.ids.splice(oldIdx, 1);
@@ -68,6 +80,11 @@ export class SocialMediaLinks extends BaseOptionComponent {
                     .find((i) => this.idsElMap.get(i)?.isConnected);
 
                 if (this.idsElMap.get(elId)?.isConnected && oldNext !== newNext) {
+                    log.pipeline("SocialMediaLinks reorder link in DOM", () => ({
+                        elId,
+                        oldNext,
+                        newNext,
+                    }));
                     reorderSocialMediaLink({
                         editingElement: this.env.getEditingElement(),
                         element: this.idsElMap.get(elId),

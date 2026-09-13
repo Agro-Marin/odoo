@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Parallax } from "@website/interactions/parallax/parallax";
+
+const log = makeLogger("website.interaction.parallax.preview");
 
 const ParallaxPreview = (I) =>
     class extends I {
@@ -17,10 +20,19 @@ const ParallaxPreview = (I) =>
             this.isZoomOut = this.el.dataset.parallaxType === "zoomOut";
             this.isZoom = this.isZoomIn || this.isZoomOut;
             this.baseScale = this.isZoom ? 1 : this.SCALE;
+            log.lifecycle("ParallaxPreview setup", () => ({
+                speed: this.speed,
+                isZoomIn: this.isZoomIn,
+                isZoomOut: this.isZoomOut,
+            }));
         }
 
         start() {
             if (!this.backgroundEl || !this.previewContainerEl) {
+                log.logic("ParallaxPreview start: missing element, skip", () => ({
+                    hasBackground: !!this.backgroundEl,
+                    hasPreviewContainer: !!this.previewContainerEl,
+                }));
                 return;
             }
 
@@ -32,6 +44,7 @@ const ParallaxPreview = (I) =>
             if (this.observer) {
                 this.observer.disconnect();
                 this.observer = null;
+                log.lifecycle("ParallaxPreview destroy: observer disconnected");
             }
         }
 
@@ -53,12 +66,16 @@ const ParallaxPreview = (I) =>
             this.observer = new IntersectionObserver((entries) => {
                 entries.forEach((entry) => {
                     if (entry.isIntersecting) {
+                        log.lifecycle("ParallaxPreview visible: scroll listener added");
                         this.updateParallaxPosition();
                         this.previewContainerEl.addEventListener(
                             "scroll",
                             this.updateParallaxPosition,
                         );
                     } else {
+                        log.lifecycle(
+                            "ParallaxPreview hidden: scroll listener removed",
+                        );
                         this.previewContainerEl.removeEventListener(
                             "scroll",
                             this.updateParallaxPosition,

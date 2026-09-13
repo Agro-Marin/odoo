@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.builder.translation.table_of_content_option");
 
 export class TranslateTableOfContentOptionPlugin extends Plugin {
     static id = "tableOfContentOption";
@@ -34,6 +37,10 @@ export class TranslateTableOfContentOptionPlugin extends Plugin {
         const currentHeadingItems = [
             ...tableOfContentMain.querySelectorAll(targetedElements),
         ].filter((el) => !el.closest(".o_snippet_desktop_invisible"));
+        log.pipeline("TranslateTableOfContentOptionPlugin sync navbar", () => ({
+            navbarItems: currentNavbarItems.length,
+            headings: currentHeadingItems.length,
+        }));
 
         currentNavbarItems.map((el, i) => {
             const newText = currentHeadingItems[i]?.textContent || "";

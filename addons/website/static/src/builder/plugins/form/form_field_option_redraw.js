@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 
 import { FormFieldOption } from "./form_field_option.js";
+
+const log = makeLogger("website.builder.option.form_field_option_redraw");
 
 export class FormFieldOptionRedraw extends BaseOptionComponent {
     static template = "website.s_website_form_field_option_redraw";
@@ -12,6 +16,7 @@ export class FormFieldOptionRedraw extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.count = 0;
         this.domState = useDomState((el) => {
             this.count++;

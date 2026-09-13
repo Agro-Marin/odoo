@@ -1,4 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.content.adapt_content");
+
 document.addEventListener("DOMContentLoaded", () => {
     const htmlEl = document.documentElement;
     const editTranslations = !!htmlEl.dataset.edit_translations;
@@ -10,6 +14,10 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
     const searchModalEl = document.querySelector("header#top .modal#o_search_modal");
+    log.pipeline("adapt content", () => ({
+        editTranslations,
+        movesSearchModal: !!searchModalEl,
+    }));
     if (searchModalEl) {
         const mainEl = document.querySelector("main");
         const searchDivEl = document.createElement("div");

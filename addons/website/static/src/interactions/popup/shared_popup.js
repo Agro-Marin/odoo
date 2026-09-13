@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.shared_popup");
 
 export class SharedPopup extends Interaction {
     static selector = ".s_popup";
@@ -17,11 +20,18 @@ export class SharedPopup extends Interaction {
     };
 
     setup() {
+        log.lifecycle("SharedPopup setup", () => ({ id: this.el.id }));
         this.popupShown = false;
     }
 
     onModalHidden() {
         if (this.el.querySelector(".s_popup_no_backdrop")) {
+            log.logic(
+                "SharedPopup onModalHidden: no backdrop, dispatch scroll",
+                () => ({
+                    id: this.el.id,
+                }),
+            );
             window.dispatchEvent(new Event("scroll"));
         }
         this.popupShown = false;

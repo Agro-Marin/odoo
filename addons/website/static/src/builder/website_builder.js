@@ -113,15 +113,20 @@ export class WebsiteBuilder extends Component {
             beforeLeave: () => this.onBeforeLeave(),
         });
         onWillStart(async () => {
+            const endTranslated = log.perf("loadTranslatedElements", () => ({
+                translation: this.props.translation,
+            }));
             this.translatedElements = this.props.translation
                 ? await rpc("/website/get_translated_elements")
                 : [];
+            endTranslated(() => ({ count: this.translatedElements.length }));
         });
         onMounted(() => {
             if (
                 this.props.translation &&
                 !browser.localStorage.getItem(localStorageNoDialogKey)
             ) {
+                log.lifecycle("TranslatorInfoDialog open");
                 this.dialog.add(TranslatorInfoDialog);
             }
         });
@@ -129,7 +134,9 @@ export class WebsiteBuilder extends Component {
 
     async discard() {
         log.logic("discard", () => ({ canUndo: this.editor.shared.history.canUndo() }));
+        const endRevert = log.perf("discard revertPreview");
         await revertPreview(this.editor);
+        endRevert();
         if (this.editor.shared.history.canUndo()) {
             this.dialog.add(ConfirmationDialog, {
                 title: _t("Discard all changes?"),
@@ -152,6 +159,7 @@ export class WebsiteBuilder extends Component {
             return;
         }
         if (this.editor.shared.history.canUndo()) {
+            log.logic("onBeforeUnload: unsaved changes, prompting");
             event.preventDefault();
             event.returnValue = "Unsaved changes";
         }
@@ -162,6 +170,7 @@ export class WebsiteBuilder extends Component {
             return true;
         }
         if (this.editor.shared.history.canUndo()) {
+            log.logic("onBeforeLeave: unsaved changes, asking confirmation");
             let continueProcess = true;
             await new Promise((resolve) => {
                 this.dialog.add(ConfirmationDialog, {
@@ -174,6 +183,7 @@ export class WebsiteBuilder extends Component {
                     },
                 });
             });
+            log.logic("onBeforeLeave: user choice", { continueProcess });
             return continueProcess;
         }
         return true;
@@ -182,6 +192,9 @@ export class WebsiteBuilder extends Component {
     reloadAfterTimeout() {
         if (this.editor.shared.operation.hasTimedOut()) {
             const currentUrl = new URL(window.location.href);
+            log.logic("reloadAfterTimeout: operation timed out, redirecting", () => ({
+                pathname: currentUrl.pathname,
+            }));
             redirect(`/@${currentUrl.pathname}`);
         }
     }
@@ -205,6 +218,7 @@ export class WebsiteBuilder extends Component {
                 });
             });
             if (!shouldContinue) {
+                log.logic("save aborted: user declined saving corrupted content");
                 return;
             }
         }

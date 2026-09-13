@@ -9,10 +9,13 @@ import {
 } from "@html_builder/plugins/shadow_option_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { HeaderBoxOption } from "./header_box_option.js";
 import { HEADER_BOX } from "./header_option_plugin.js";
+
+const log = makeLogger("website.builder.plugin.header_box_option_plugin");
 
 class HeaderBoxOptionPlugin extends Plugin {
     static id = "HeaderBoxOptionPlugin";
@@ -48,10 +51,17 @@ export class StyleActionHeaderAction extends StyleAction {
         const styleName = params.mainParam;
 
         if (styleName === "border-color") {
+            log.logic("StyleActionHeaderAction apply: menu border color", () => ({
+                value,
+            }));
             return this.dependencies.customizeWebsite.customizeWebsiteColors({
                 "menu-border-color": value,
             });
         }
+        log.logic("StyleActionHeaderAction apply: menu variable", () => ({
+            styleName,
+            value,
+        }));
         return this.dependencies.customizeWebsite.customizeWebsiteVariables({
             [`menu-${styleName}`]: value,
         });
@@ -68,6 +78,10 @@ export class SetShadowModeHeaderAction extends SetShadowModeAction {
     async apply({ value: shadowMode }) {
         const defaultShadow =
             shadowMode === "none" ? "none" : getDefaultShadow(shadowMode);
+        log.logic("SetShadowModeHeaderAction apply", () => ({
+            shadowMode,
+            defaultShadow,
+        }));
         return this.dependencies.customizeWebsite.customizeWebsiteVariables({
             "menu-box-shadow": defaultShadow,
         });
@@ -84,6 +98,7 @@ export class SetShadowHeaderAction extends SetShadowAction {
     async apply({ editingElement, params: { mainParam: attributeName }, value }) {
         const shadow = getCurrentShadow(editingElement);
         shadow[attributeName] = value;
+        log.pipeline("SetShadowHeaderAction apply", () => ({ attributeName, value }));
 
         return this.dependencies.customizeWebsite.customizeWebsiteVariables({
             "menu-box-shadow": shadowToString(shadow),

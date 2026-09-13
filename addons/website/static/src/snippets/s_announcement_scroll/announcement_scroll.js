@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_announcement_scroll");
 
 export class AnnouncementScroll extends Interaction {
     static selector = ".s_announcement_scroll";
@@ -38,12 +41,16 @@ export class AnnouncementScroll extends Interaction {
     }
 
     start() {
+        log.lifecycle("start", () => ({
+            parallax: this.el.classList.contains("s_announcement_scroll_parallax"),
+        }));
         this.updateMarqueeLayout();
         this.announcementScrollReady = true;
         this.updateContent();
     }
 
     destroy() {
+        log.lifecycle("destroy: undo marquee layout");
         this.undoMarqueeLayout();
     }
 
@@ -105,6 +112,13 @@ export class AnnouncementScroll extends Interaction {
             this.marqueeContainerEl.offsetWidth / marqueeItemElWidth,
         );
         if (itemsPerContainer > 100) {
+            log.logic(
+                "updateMarqueeLayout: too many items per container, skipped",
+                () => ({
+                    itemsPerContainer,
+                    itemWidth: marqueeItemElWidth,
+                }),
+            );
             return;
         }
 
@@ -116,6 +130,10 @@ export class AnnouncementScroll extends Interaction {
         );
 
         const cloneCount = itemsPerContainer * 2 + 1;
+        log.pipeline("updateMarqueeLayout: cloning items", () => ({
+            itemsPerContainer,
+            cloneCount,
+        }));
         for (let i = 0; i < cloneCount; i++) {
             const cloneEl = this.marqueeItemEl.cloneNode(true);
             cloneEl.classList.add("s_announcement_scroll_marquee_item_clone");

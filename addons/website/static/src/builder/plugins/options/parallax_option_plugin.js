@@ -4,9 +4,12 @@ import { applyFunDependOnSelectorAndExclude } from "@html_builder/plugins/utils"
 import { filterExtends } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { BaseWebsiteBackgroundOption } from "./background_option.js";
+
+const log = makeLogger("website.builder.plugin.website_parallax_plugin");
 
 /**
  * @typedef { Object } WebsiteParallaxShared
@@ -33,9 +36,16 @@ class WebsiteParallaxPlugin extends Plugin {
             this.getResource("builder_options"),
             BaseWebsiteBackgroundOption,
         );
+        log.lifecycle("WebsiteParallaxPlugin setup", () => ({
+            backgroundOptions: this.backgroundOptionClasses.length,
+        }));
     }
     applyParallaxType({ editingElement, value }) {
         const isParallax = value !== "none";
+        log.pipeline("WebsiteParallaxPlugin applyParallaxType", () => ({
+            value,
+            isParallax,
+        }));
         editingElement.classList.toggle("parallax", isParallax);
         editingElement.classList.toggle("s_parallax_is_fixed", value === "fixed");
         editingElement.classList.toggle(
@@ -59,6 +69,7 @@ class WebsiteParallaxPlugin extends Plugin {
         let parallaxEl = editingElement.querySelector(":scope > .s_parallax_bg");
         if (isParallax) {
             if (!parallaxEl) {
+                log.logic("WebsiteParallaxPlugin create parallax background");
                 parallaxEl = document.createElement("span");
                 parallaxEl.classList.add("s_parallax_bg");
                 editingElement.prepend(parallaxEl);
@@ -68,6 +79,7 @@ class WebsiteParallaxPlugin extends Plugin {
                 );
             }
         } else if (parallaxEl) {
+            log.logic("WebsiteParallaxPlugin remove parallax background");
             this.dependencies.backgroundImageOption.changeEditingEl(
                 parallaxEl,
                 editingElement,
@@ -93,6 +105,14 @@ class WebsiteParallaxPlugin extends Plugin {
             bgImage === "none" ||
             editingEl.classList.contains("o_background_video")
         ) {
+            log.logic(
+                "WebsiteParallaxPlugin removeParallax: no parallax image",
+                () => ({
+                    hasParallaxEl: !!parallaxEl,
+                    bgImage,
+                    hasVideo: editingEl.classList.contains("o_background_video"),
+                }),
+            );
             this.applyParallaxType({
                 editingElement: editingEl,
                 value: "none",

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { BaseHeader } from "@website/interactions/header/base_header";
+
+const log = makeLogger("website.interaction.header_standard");
 
 export class HeaderStandard extends BaseHeader {
     static selector = "header.o_header_standard:not(.o_header_sidebar)";
@@ -9,6 +12,9 @@ export class HeaderStandard extends BaseHeader {
         super.setup();
         this.transitionPoint = 300;
         this.transitionPossible = false;
+        log.lifecycle("HeaderStandard setup", () => ({
+            transitionPoint: this.transitionPoint,
+        }));
     }
 
     /**
@@ -39,6 +45,12 @@ export class HeaderStandard extends BaseHeader {
         const isScrolled = scroll > this.transitionPoint;
         if (this.isScrolled !== isScrolled) {
             this.transitionPossible = this.canTransition() || !isScrolled;
+            log.pipeline("HeaderStandard onScroll: scrolled state change", () => ({
+                from: this.isScrolled,
+                to: isScrolled,
+                transitionPossible: this.transitionPossible,
+                scroll,
+            }));
             if (this.transitionPossible) {
                 this.adaptToHeaderChangeLoop(1);
             }

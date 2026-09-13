@@ -2,13 +2,22 @@
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { getCSSVariableValue } from "@html_editor/utils/formatting";
 import { onMounted } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.theme_colors");
 
 export class ThemeColorsOption extends BaseOptionComponent {
     static template = "website.ThemeColorsOption";
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.palettes = this.getPalettes();
         this.colorPresetToShow = this.env.colorPresetToShow;
+        log.pipeline("setup palettes collected", () => ({
+            palettes: this.palettes.length,
+            colorPresetToShow: this.colorPresetToShow,
+        }));
         this.state = useDomState(() => ({
             presets: this.getPresets(),
         }));
@@ -16,6 +25,9 @@ export class ThemeColorsOption extends BaseOptionComponent {
             this.iframeDocument =
                 document.querySelector("iframe").contentWindow.document;
             this.state.presets = this.getPresets();
+            log.pipeline("mounted: presets read from iframe", () => ({
+                hasIframeDocument: !!this.iframeDocument,
+            }));
             this.colorPresetToShow = null;
         });
     }

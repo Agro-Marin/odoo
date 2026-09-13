@@ -6,6 +6,7 @@ import { isSmallInteger } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate } from "@web/core/l10n/dates";
 import { localization } from "@web/core/l10n/localization";
 import { luxon } from "@web/core/l10n/luxon";
@@ -66,6 +67,8 @@ import {
  */
 
 const { DateTime } = luxon;
+
+const log = makeLogger("website.builder.plugin.website_form_option");
 
 export class WebsiteFormSubmitOption extends BaseOptionComponent {
     static template = "website.s_website_form_submit_option";
@@ -188,6 +191,7 @@ export class FormOptionPlugin extends Plugin {
         is_unremovable_selector: ".s_website_form_send, .s_website_form_submit",
     };
     setup() {
+        log.lifecycle("setup");
         this.modelsCache = new SyncCache(this._fetchModels.bind(this));
         this.fieldRecordsCache = new SyncCache(this._fetchFieldRecords.bind(this));
         this.authorizedFieldsCache = new Cache(
@@ -201,6 +205,7 @@ export class FormOptionPlugin extends Plugin {
     }
     destroy() {
         super.destroy();
+        log.lifecycle("destroy");
         this.modelsCache.invalidate();
         this.fieldRecordsCache.invalidate();
         this.authorizedFieldsCache.invalidate();
@@ -213,6 +218,7 @@ export class FormOptionPlugin extends Plugin {
         return this.modelsCache.preload();
     }
     async _fetchModels() {
+        log.pipeline("modelsCache miss: rpc get_compatible_form_models");
         return await this.services.orm.call("ir.model", "get_compatible_form_models");
     }
     async fetchFieldRecords(field) {
@@ -232,6 +238,10 @@ export class FormOptionPlugin extends Plugin {
         field.required = field.required ? 1 : null;
 
         if (field.records) {
+            log.logic("_fetchFieldRecords: records already present", () => ({
+                name: field.name,
+                records: field.records.length,
+            }));
             return field.records;
         }
         if (field._property && field.type === "tags") {
@@ -240,11 +250,19 @@ export class FormOptionPlugin extends Plugin {
                 display_name: tag[1],
             }));
         } else if (field._property && field.comodel) {
+            const endSearchComodel = log.perf(
+                "_fetchFieldRecords property comodel",
+                () => ({
+                    name: field.name,
+                    comodel: field.comodel,
+                }),
+            );
             field.records = await this.services.orm.searchRead(
                 field.comodel,
                 field.domain || [],
                 ["display_name"],
             );
+            endSearchComodel(() => ({ records: field.records.length }));
         } else if (field.type === "selection") {
             field.records = field.selection.map((el) => ({
                 id: el[0],
@@ -252,11 +270,16 @@ export class FormOptionPlugin extends Plugin {
             }));
         } else if (field.relation && field.relation !== "ir.attachment") {
             const fieldNames = field.fieldName ? [field.fieldName] : ["display_name"];
+            const endSearchRelation = log.perf("_fetchFieldRecords relation", () => ({
+                name: field.name,
+                relation: field.relation,
+            }));
             field.records = await this.services.orm.searchRead(
                 field.relation,
                 field.domain || [],
                 fieldNames,
             );
+            endSearchRelation(() => ({ records: field.records.length }));
             if (field.fieldName) {
                 field.records.forEach((r) => (r["display_name"] = r[field.fieldName]));
             }
@@ -268,8 +291,21 @@ export class FormOptionPlugin extends Plugin {
         const formInfo = registry
             .category("website.form_editor_actions")
             .get(formKey, null);
+        log.logic("prepareFormModel", () => ({
+            formKey,
+            model: activeForm?.model,
+            hasFormInfo: !!formInfo,
+        }));
         if (formInfo) {
             const formatInfo = getDefaultFormat(el);
+            const endFetchRecords = log.perf(
+                "prepareFormModel fetch field records",
+                () => ({
+                    formKey,
+                    formFields: formInfo.formFields.length,
+                    fields: formInfo.fields?.length,
+                }),
+            );
             await Promise.all(
                 formInfo.formFields.map((field) => {
                     field.formatInfo = formatInfo;
@@ -277,6 +313,7 @@ export class FormOptionPlugin extends Plugin {
                 }),
             );
             await this.fetchFormInfoFields(formInfo);
+            endFetchRecords();
         }
         return formInfo;
     }
@@ -292,8 +329,16 @@ export class FormOptionPlugin extends Plugin {
             hiddenEl.remove();
         }
         if (fieldName === "email_to" && !value && !this.dataForEmailTo) {
+            log.logic("addHiddenField: email_to falls back to default", () => ({
+                value: DEFAULT_EMAIL_TO_VALUE,
+            }));
             value = DEFAULT_EMAIL_TO_VALUE;
         }
+        log.logic("addHiddenField", () => ({
+            fieldName,
+            value,
+            rendered: !!(value || fieldName === "email_to"),
+        }));
         if (value || fieldName === "email_to") {
             const hiddenField = renderToElement("website.form_field_hidden", {
                 field: {
@@ -316,6 +361,12 @@ export class FormOptionPlugin extends Plugin {
      * @param {Object} formInfo
      */
     applyFormModel(el, activeForm, modelId, formInfo) {
+        log.pipeline("applyFormModel", () => ({
+            modelId,
+            model: activeForm?.model,
+            formFields: formInfo?.formFields.length,
+            hiddenFields: formInfo?.fields?.length,
+        }));
         let oldFormInfo;
         if (modelId) {
             const oldFormKey = activeForm.website_form_key;
@@ -342,6 +393,10 @@ export class FormOptionPlugin extends Plugin {
                     oldFormInfo.successPage &&
                     currentSuccessPage === oldFormInfo.successPage)
             ) {
+                log.logic("applyFormModel: reset success page to default", () => ({
+                    currentSuccessPage,
+                    oldSuccessPage: oldFormInfo?.successPage,
+                }));
                 el.dataset.successPage = "/contactus-thank-you";
             }
         }
@@ -381,15 +436,23 @@ export class FormOptionPlugin extends Plugin {
             propertyOrigins[hiddenInputEl.name] = hiddenInputEl.value;
         }
         const cacheKey = parts.join("/");
+        log.pipeline("fetchAuthorizedFields", () => ({ cacheKey }));
         return this.authorizedFieldsCache.read({ cacheKey, model, propertyOrigins });
     }
     async _fetchAuthorizedFields({ cacheKey, model, propertyOrigins }) {
+        log.pipeline("authorizedFieldsCache miss: rpc get_fields_authorized", () => ({
+            cacheKey,
+        }));
         return this.services.orm.call("ir.model", "get_fields_authorized", [
             model,
             propertyOrigins,
         ]);
     }
     async _getVisibilityConditionCachedRecords(model, domain, fields, kwargs = {}) {
+        log.pipeline("visibilityConditionCachedRecords miss: searchRead", () => ({
+            model,
+            fields,
+        }));
         return this.services.orm.searchRead(model, domain, fields, {
             ...kwargs,
             limit: 1000,
@@ -400,6 +463,7 @@ export class FormOptionPlugin extends Plugin {
         formEl.querySelectorAll(".s_website_form_mark").forEach((el) => el.remove());
         const mark = getMark(formEl);
         if (!mark) {
+            log.logic("setLabelsMark: no mark, labels cleared only");
             return;
         }
         let fieldsToMark = [];
@@ -411,6 +475,11 @@ export class FormOptionPlugin extends Plugin {
         } else if (isOptionalMark(formEl)) {
             fieldsToMark = fields.filter((el) => !el.matches(requiredSelector));
         }
+        log.pipeline("setLabelsMark", () => ({
+            mark,
+            fields: fields.length,
+            marked: fieldsToMark.length,
+        }));
         fieldsToMark.forEach((field) => {
             const span = document.createElement("span");
             span.classList.add("s_website_form_mark");
@@ -425,6 +494,7 @@ export class FormOptionPlugin extends Plugin {
         let locationEl = formEl.querySelector(
             ".s_website_form_submit, .s_website_form_recaptcha",
         );
+        log.logic("addFieldToForm", () => ({ hasSubmitOrRecaptcha: !!locationEl }));
         if (!locationEl) {
             locationEl = formEl.querySelector(".s_website_form_rows");
             locationEl.insertAdjacentElement("beforeend", fieldEl);
@@ -441,10 +511,12 @@ export class FormOptionPlugin extends Plugin {
         field.formatInfo.optionalMark = isOptionalMark(formEl);
         field.formatInfo.mark = getMark(formEl);
         const newFieldEl = renderField(field);
+        log.pipeline("addFieldAfterField", () => ({ type: field.type }));
         fieldEl.insertAdjacentElement("afterend", newFieldEl);
         this.dependencies.builderOptions.setNextTarget(newFieldEl);
     }
     async prepareFields({ editingElement: fieldEl, value }) {
+        const endPrepareFields = log.perf("prepareFields", () => ({ value }));
         const fieldOptionData = await this.loadFieldOptionData(fieldEl);
         const fieldName = getFieldName(fieldEl);
         const field = fieldOptionData.fields[fieldName];
@@ -452,9 +524,13 @@ export class FormOptionPlugin extends Plugin {
         if (fieldOptionData.fields[value]) {
             await this.fetchFieldRecords(fieldOptionData.fields[value]);
         }
+        endPrepareFields();
         return fieldOptionData.fields;
     }
     async prepareConditionInputs({ editingElement: fieldEl, value }) {
+        const endPrepareConditionInputs = log.perf("prepareConditionInputs", () => ({
+            value,
+        }));
         const fieldOptionData = await this.loadFieldOptionData(fieldEl);
         const fieldName = getFieldName(fieldEl);
         const field = fieldOptionData.fields[fieldName];
@@ -462,6 +538,9 @@ export class FormOptionPlugin extends Plugin {
         if (fieldOptionData.fields[value]) {
             await this.fetchFieldRecords(fieldOptionData.fields[value]);
         }
+        endPrepareConditionInputs(() => ({
+            conditionInputs: fieldOptionData.conditionInputs.length,
+        }));
         return fieldOptionData.conditionInputs;
     }
     /**
@@ -472,6 +551,12 @@ export class FormOptionPlugin extends Plugin {
      */
     replaceField(oldFieldEl, field, fields) {
         const activeField = getActiveField(oldFieldEl, { fields });
+        log.logic("replaceField", () => ({
+            from: activeField.type,
+            to: field.type,
+            name: field.name,
+            resetValue: activeField.type !== field.type,
+        }));
         if (activeField.type !== field.type) {
             field.value = "";
         }
@@ -497,6 +582,11 @@ export class FormOptionPlugin extends Plugin {
                 input.value &&
                 !newValuesText.includes(input.value)
             ) {
+                log.logic("replaceField: remap visibility conditions", () => ({
+                    index: i,
+                    from: input.value,
+                    to: newValuesText[i],
+                }));
                 for (const dependentEl of formEl.querySelectorAll(
                     `[data-visibility-condition="${CSS.escape(
                         input.value,
@@ -514,6 +604,12 @@ export class FormOptionPlugin extends Plugin {
     async loadFieldOptionData(fieldEl) {
         const formEl = fieldEl.closest("form");
         const fields = {};
+        const endAuthorizedFields = log.perf(
+            "loadFieldOptionData authorized fields",
+            () => ({
+                model: formEl.dataset.model_name,
+            }),
+        );
         const existingFields = await this.fetchAuthorizedFields(formEl).then(
             (fieldsFromCache) => {
                 for (const [fieldName, field] of Object.entries(fieldsFromCache)) {
@@ -543,6 +639,7 @@ export class FormOptionPlugin extends Plugin {
                     );
             },
         );
+        endAuthorizedFields(() => ({ existingFields: existingFields.length }));
         const existingDependencyNames = [];
         const conditionInputs = [];
         for (const el of formEl.querySelectorAll(
@@ -594,11 +691,16 @@ export class FormOptionPlugin extends Plugin {
                     const idField = containerEl.dataset.idField || "id";
                     const displayNameField =
                         containerEl.dataset.displayNameField || "display_name";
+                    const endConditionRecords = log.perf(
+                        "loadFieldOptionData visibility condition records",
+                        () => ({ model }),
+                    );
                     const records = await this.visibilityConditionCachedRecords.read(
                         model,
                         [],
                         [idField, displayNameField],
                     );
+                    endConditionRecords(() => ({ records: records.length }));
                     for (const record of records) {
                         conditionValueList.push({
                             value: String(record[idField]),
@@ -687,7 +789,12 @@ export class FormOptionPlugin extends Plugin {
             );
             let availableRecords = undefined;
             if (!isFieldCustom(fieldEl)) {
+                const endValueListRecords = log.perf(
+                    "loadFieldOptionData value list records",
+                    () => ({ name: field.name, type }),
+                );
                 await this.fetchFieldRecords(field);
+                endValueListRecords();
                 availableRecords = JSON.stringify(field.records);
             }
             valueList = reactive({
@@ -704,6 +811,14 @@ export class FormOptionPlugin extends Plugin {
                 isInputDisabled: !isFieldCustom(fieldEl),
             });
         }
+        log.pipeline("loadFieldOptionData", () => ({
+            fields: Object.keys(fields).length,
+            existingFields: existingFields.length,
+            conditionInputs: conditionInputs.length,
+            availableFields: availableFields.length,
+            hasValueList: !!valueList,
+            conditionValues: conditionValueList.length,
+        }));
         return {
             fields,
             existingFields,
@@ -718,6 +833,9 @@ export class FormOptionPlugin extends Plugin {
      * @param {HTMLElement} params.snippetEl
      */
     async onSnippetDropped({ snippetEl }) {
+        log.pipeline("onSnippetDropped", () => ({
+            snippet: snippetEl.dataset.snippet,
+        }));
         await this.rerenderFieldsInElement(snippetEl);
     }
     /**
@@ -725,6 +843,7 @@ export class FormOptionPlugin extends Plugin {
      * @param {HTMLElement} params.cloneEl
      */
     async onCloned({ cloneEl }) {
+        log.pipeline("onCloned", () => ({ className: cloneEl.className }));
         await this.rerenderFieldsInElement(cloneEl);
 
         this.removeSuccessMessagePreviews(cloneEl);
@@ -733,6 +852,9 @@ export class FormOptionPlugin extends Plugin {
      * @param {HTMLElement} rootEl
      */
     async rerenderFieldsInElement(rootEl) {
+        const endRerender = log.perf("rerenderFieldsInElement", () => ({
+            isField: rootEl.matches("[data-name='Field']:not(.s_website_form_dnone)"),
+        }));
         if (rootEl.matches("[data-name='Field']:not(.s_website_form_dnone)")) {
             const { fields } = await this.loadFieldOptionData(rootEl);
             rerenderField(rootEl, fields);
@@ -742,8 +864,12 @@ export class FormOptionPlugin extends Plugin {
                     "[data-name='Field']:not(.s_website_form_dnone)",
                 );
                 if (formFieldsToRerender.length === 0) {
+                    log.logic("rerenderFieldsInElement: form without fields, skipped");
                     continue;
                 }
+                log.pipeline("rerenderFieldsInElement form", () => ({
+                    fields: formFieldsToRerender.length,
+                }));
                 const { fields } = await this.loadFieldOptionData(
                     formFieldsToRerender[0],
                 );
@@ -752,12 +878,16 @@ export class FormOptionPlugin extends Plugin {
                 }
             }
         }
+        endRerender();
     }
     /**
      * @param {HTMLElement} rootEl
      */
     removeSuccessMessagePreviews(rootEl) {
         const toCleanEls = rootEl.querySelectorAll(".o_show_form_success_message");
+        log.pipeline("removeSuccessMessagePreviews", () => ({
+            count: toCleanEls.length,
+        }));
         toCleanEls.forEach((el) => el.classList.remove("o_show_form_success_message"));
     }
     /**
@@ -856,11 +986,16 @@ export class SelectAction extends BuilderAction {
     async load({ editingElement: el, value: modelId }) {
         const modelCantChange = !!el.getAttribute("hide-change-model");
         if (modelCantChange) {
+            log.logic("SelectAction load: model cannot change", () => ({ modelId }));
             return;
         }
         const activeForm = this.dependencies.websiteFormOption
             .getModelsCache(el)
             .find((model) => model.id === parseInt(modelId));
+        log.pipeline("SelectAction load", () => ({
+            modelId,
+            model: activeForm?.model,
+        }));
         return {
             formInfo: await this.dependencies.websiteFormOption.prepareFormModel(
                 el,
@@ -870,11 +1005,19 @@ export class SelectAction extends BuilderAction {
     }
     apply({ editingElement: el, value: modelId, loadResult }) {
         if (!loadResult) {
+            log.logic("SelectAction apply: no load result, skipped", () => ({
+                modelId,
+            }));
             return;
         }
         const models = this.dependencies.websiteFormOption.getModelsCache(el);
         const targetModelName = getModelName(el);
         const activeForm = models.find((m) => m.model === targetModelName);
+        log.pipeline("SelectAction apply", () => ({
+            modelId,
+            from: targetModelName,
+            hasFormInfo: !!loadResult.formInfo,
+        }));
         this.dependencies.websiteFormOption.applyFormModel(
             el,
             activeForm,
@@ -893,6 +1036,9 @@ export class AddActionFieldAction extends BuilderAction {
     static id = "addActionField";
     static dependencies = ["websiteFormOption"];
     async load({ editingElement: el }) {
+        log.pipeline("AddActionFieldAction load", () => ({
+            model: el.dataset.model_name,
+        }));
         return this.dependencies.websiteFormOption.fetchAuthorizedFields(el);
     }
     apply({ editingElement: el, value, params, loadResult: authorizedFields }) {
@@ -907,6 +1053,11 @@ export class AddActionFieldAction extends BuilderAction {
         if (params.isSelect === "true") {
             value = parseInt(value);
         }
+        log.pipeline("AddActionFieldAction apply", () => ({
+            fieldName,
+            value,
+            authorizedFields: Object.keys(authorizedFields).length,
+        }));
         this.dependencies.websiteFormOption.addHiddenField(el, value, fieldName);
     }
     getValue({ editingElement: el, params }) {
@@ -949,16 +1100,31 @@ export class PromptSaveRedirectAction extends BuilderAction {
             const message = _t(
                 "You are about to be redirected. Your changes will be saved.",
             );
+            log.lifecycle("PromptSaveRedirectAction dialog open", () => ({
+                action: mainParam,
+            }));
             this.services.dialog.add(ConfirmationDialog, {
                 body: message,
                 confirmLabel: _t("Save and Redirect"),
                 confirm: async () => {
+                    log.logic("PromptSaveRedirectAction confirmed", () => ({
+                        action: mainParam,
+                    }));
+                    const endSaveAndClose = log.perf(
+                        "PromptSaveRedirectAction save and close",
+                    );
                     await this.dependencies.savePlugin.save();
                     await this.config.closeEditor();
+                    endSaveAndClose();
                     redirectToAction(mainParam);
                     resolve();
                 },
-                cancel: () => resolve(),
+                cancel: () => {
+                    log.logic("PromptSaveRedirectAction cancelled", () => ({
+                        action: mainParam,
+                    }));
+                    resolve();
+                },
             });
         });
     }
@@ -992,6 +1158,10 @@ export class OnSuccessAction extends BuilderAction {
     apply({ editingElement: el, value }) {
         el.dataset.successMode = value;
         let messageEl = el.parentElement.querySelector(".s_website_form_end_message");
+        log.logic("OnSuccessAction apply", () => ({
+            value,
+            hasMessageEl: !!messageEl,
+        }));
         if (value === "message") {
             if (!messageEl) {
                 messageEl = renderToElement("website.s_website_form_end_message");
@@ -1013,12 +1183,14 @@ export class ToggleEndMessageAction extends BuilderAction {
     static dependencies = ["builderOptions"];
     apply({ editingElement: el }) {
         const messageEl = el.parentElement.querySelector(".s_website_form_end_message");
+        log.pipeline("ToggleEndMessageAction apply: show success message preview");
         messageEl.classList.add("o_show_form_success_message");
         el.classList.add("o_show_form_success_message");
         this.dependencies.builderOptions.setNextTarget(messageEl);
     }
     clean({ editingElement: el }) {
         const messageEl = el.parentElement.querySelector(".s_website_form_end_message");
+        log.pipeline("ToggleEndMessageAction clean: hide success message preview");
         messageEl.classList.remove("o_show_form_success_message");
         el.classList.remove("o_show_form_success_message");
         this.dependencies.builderOptions.setNextTarget(el);
@@ -1035,6 +1207,9 @@ export class FormToggleRecaptchaLegalAction extends BuilderAction {
             labelWidth: labelWidth,
         });
         legalEl.setAttribute("contentEditable", true);
+        log.pipeline("FormToggleRecaptchaLegalAction apply: legal inserted", () => ({
+            labelWidth,
+        }));
         el.querySelector(".s_website_form_submit").insertAdjacentElement(
             "beforebegin",
             legalEl,
@@ -1042,6 +1217,7 @@ export class FormToggleRecaptchaLegalAction extends BuilderAction {
     }
     clean({ editingElement: el }) {
         const recaptchaLegalEl = el.querySelector(".s_website_form_recaptcha");
+        log.pipeline("FormToggleRecaptchaLegalAction clean: legal removed");
         recaptchaLegalEl.remove();
     }
     isApplied({ editingElement: el }) {
@@ -1062,6 +1238,10 @@ export class CustomFieldAction extends BuilderAction {
             ".s_website_form_label_content",
         ).textContent;
         const field = getCustomField(value, oldLabelText);
+        log.pipeline("CustomFieldAction apply", () => ({
+            type: value,
+            label: oldLabelText,
+        }));
         setActiveProperties(fieldEl, field);
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1078,6 +1258,10 @@ export class ExistingFieldAction extends BuilderAction {
     }
     apply({ editingElement: fieldEl, value, loadResult: fields }) {
         const field = fields[value];
+        log.logic("ExistingFieldAction apply", () => ({
+            name: value,
+            known: !!field,
+        }));
         setActiveProperties(fieldEl, field);
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1094,6 +1278,7 @@ export class SelectTypeAction extends BuilderAction {
     }
     apply({ editingElement: fieldEl, value, loadResult: fields }) {
         const field = getActiveField(fieldEl, { fields });
+        log.pipeline("SelectTypeAction apply", () => ({ from: field.type, to: value }));
         field.type = value;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1110,6 +1295,11 @@ export class ExistingFieldSelectTypeAction extends BuilderAction {
     }
     apply({ editingElement: fieldEl, value, loadResult: fields }) {
         const field = getActiveField(fieldEl, { fields });
+        log.pipeline("ExistingFieldSelectTypeAction apply", () => ({
+            name: field.name,
+            from: field.type,
+            to: value,
+        }));
         field.type = value;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1123,6 +1313,10 @@ export class MultiCheckboxDisplayAction extends BuilderAction {
     apply({ editingElement: fieldEl, value }) {
         const targetEl = getMultipleInputs(fieldEl);
         const isHorizontal = value === "horizontal";
+        log.pipeline("MultiCheckboxDisplayAction apply", () => ({
+            value,
+            inputs: targetEl.querySelectorAll(".checkbox, .radio").length,
+        }));
         for (const el of targetEl.querySelectorAll(".checkbox, .radio")) {
             el.classList.toggle("col-lg-4", isHorizontal);
             el.classList.toggle("col-md-6", isHorizontal);
@@ -1141,6 +1335,9 @@ export class SetLabelTextAction extends BuilderAction {
     async apply({ editingElement: fieldEl, value }) {
         const labelEl = fieldEl.querySelector(".s_website_form_label_content");
         labelEl.textContent = value;
+        log.logic("SetLabelTextAction apply", () => ({
+            isCustom: isFieldCustom(fieldEl),
+        }));
         if (isFieldCustom(fieldEl)) {
             value = getQuotesEncodedName(value);
             const multiple = fieldEl.querySelector(".s_website_form_multiple");
@@ -1157,8 +1354,19 @@ export class SetLabelTextAction extends BuilderAction {
                 )}"],
                     .s_website_form_field[data-visibility-dependency="${CSS.escape(value)}"]`,
             );
+            log.pipeline("SetLabelTextAction rename dependents", () => ({
+                from: previousInputName,
+                to: value,
+                dependents: dependentEls.length,
+            }));
             for (const dependentEl of dependentEls) {
                 if (findCircular(fieldEl, dependentEl)) {
+                    log.logic(
+                        "SetLabelTextAction: circular dependency removed",
+                        () => ({
+                            dependent: dependentEl.dataset.name,
+                        }),
+                    );
                     deleteConditionalVisibility(dependentEl);
                 } else {
                     dependentEl.dataset.visibilityDependency = value;
@@ -1169,6 +1377,12 @@ export class SetLabelTextAction extends BuilderAction {
                     .closest("form")
                     .querySelectorAll("[data-visibility-dependency]"),
             ];
+            const endRevalidate = log.perf(
+                "SetLabelTextAction revalidate conditions",
+                () => ({
+                    fields: fieldWithVisibilityDependencyEls.length,
+                }),
+            );
             await Promise.all(
                 fieldWithVisibilityDependencyEls.map(async (fieldWithConditionEl) => {
                     const conditionFieldName =
@@ -1179,10 +1393,17 @@ export class SetLabelTextAction extends BuilderAction {
                         );
                     const names = fieldData.conditionInputs.map((entry) => entry.name);
                     if (!names.includes(conditionFieldName)) {
+                        log.logic(
+                            "SetLabelTextAction: condition no longer valid",
+                            () => ({
+                                conditionFieldName,
+                            }),
+                        );
                         deleteConditionalVisibility(fieldWithConditionEl);
                     }
                 }),
             );
+            endRevalidate();
         }
     }
     getValue({ editingElement: fieldEl }) {
@@ -1198,6 +1419,10 @@ export class SelectLabelPositionAction extends BuilderAction {
     }
     apply({ editingElement: fieldEl, value, loadResult: fields }) {
         const field = getActiveField(fieldEl, { fields });
+        log.pipeline("SelectLabelPositionAction apply", () => ({
+            from: field.formatInfo.labelPosition,
+            to: value,
+        }));
         field.formatInfo.labelPosition = value;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1216,6 +1441,9 @@ export class ToggleDescriptionAction extends BuilderAction {
         const description = fieldEl.querySelector(".s_website_form_field_description");
         const hasDescription = !!description;
         const field = getActiveField(fieldEl, { fields });
+        log.pipeline("ToggleDescriptionAction apply", () => ({
+            show: !hasDescription,
+        }));
         field.description = !hasDescription;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }
@@ -1238,6 +1466,7 @@ export class ToggleRequiredAction extends BuilderAction {
     static id = "toggleRequired";
     static dependencies = ["websiteFormOption"];
     apply({ editingElement: fieldEl, params: { mainParam: activeValue } }) {
+        log.pipeline("ToggleRequiredAction apply", () => ({ activeValue }));
         fieldEl.classList.add(activeValue);
         fieldEl
             .querySelectorAll("input, select, textarea")
@@ -1245,6 +1474,7 @@ export class ToggleRequiredAction extends BuilderAction {
         this.dependencies.websiteFormOption.setLabelsMark(fieldEl.closest("form"));
     }
     clean({ editingElement: fieldEl, params: { mainParam: activeValue } }) {
+        log.pipeline("ToggleRequiredAction clean", () => ({ activeValue }));
         fieldEl.classList.remove(activeValue);
         fieldEl
             .querySelectorAll("input, select, textarea")
@@ -1266,6 +1496,9 @@ export class SetRequirementComparatorAction extends BuilderAction {
 export class SetCustomErrorMessageAction extends BuilderAction {
     static id = "setCustomErrorMessage";
     apply({ editingElement: fieldEl }) {
+        log.logic("SetCustomErrorMessageAction apply", () => ({
+            enable: !fieldEl.dataset.customError,
+        }));
         if (!fieldEl.dataset.customError) {
             fieldEl.dataset.customError = true;
         } else {
@@ -1286,6 +1519,11 @@ export class SetDefaultErrorMessageAction extends BuilderAction {
             requirementBetween: between,
             type,
         } = fieldEl.dataset;
+        log.logic("SetDefaultErrorMessageAction apply", () => ({
+            comparator,
+            type,
+            hasCondition: !!condition,
+        }));
         fieldEl.dataset.errorMessage =
             this.dependencies.websiteFormOption.defaultMessage(
                 comparator,
@@ -1306,14 +1544,29 @@ export class SetVisibilityAction extends BuilderAction {
         if (value === "conditional") {
             for (const conditionInput of conditionInputs) {
                 if (conditionInput.name) {
+                    log.logic(
+                        "SetVisibilityAction apply: conditional on first input",
+                        () => ({
+                            dependency: conditionInput.name,
+                        }),
+                    );
                     setVisibilityDependency(fieldEl, conditionInput.name);
                     return;
                 }
             }
+            log.logic(
+                "SetVisibilityAction apply: no condition input available",
+                () => ({
+                    conditionInputs: conditionInputs.length,
+                }),
+            );
             this.services.dialog.add(ConfirmationDialog, {
                 body: _t("There is no field available for this option."),
             });
         }
+        log.logic("SetVisibilityAction apply: clear conditional visibility", () => ({
+            value,
+        }));
         deleteConditionalVisibility(fieldEl);
     }
     isApplied() {
@@ -1323,6 +1576,9 @@ export class SetVisibilityAction extends BuilderAction {
 export class SetVisibilityDependencyAction extends BuilderAction {
     static id = "setVisibilityDependency";
     apply({ editingElement: fieldEl, value }) {
+        log.pipeline("SetVisibilityDependencyAction apply", () => ({
+            dependency: value,
+        }));
         return setVisibilityDependency(fieldEl, value);
     }
     isApplied({ editingElement: fieldEl, value }) {
@@ -1353,6 +1609,9 @@ export class SetFormCustomFieldValueListAction extends BuilderAction {
             );
             const hasDefault = valueList.some((value) => value.selected);
             if (valueList.length && !hasDefault) {
+                log.logic(
+                    "SetFormCustomFieldValueListAction: prepend empty default option",
+                );
                 valueList.unshift({
                     id: "",
                     display_name: "",
@@ -1361,6 +1620,10 @@ export class SetFormCustomFieldValueListAction extends BuilderAction {
             }
         }
         const field = getActiveField(fieldEl, { fields });
+        log.pipeline("SetFormCustomFieldValueListAction apply", () => ({
+            isCustom: isFieldCustom(fieldEl),
+            records: valueList.length,
+        }));
         field.records = valueList;
         this.dependencies.websiteFormOption.replaceField(fieldEl, field, fields);
     }

@@ -2,8 +2,11 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { clamp } from "@web/core/utils/format/numbers";
+
+const log = makeLogger("website.builder.plugin.progress_bar_option");
 
 export class ProgressBarOption extends BaseOptionComponent {
     static template = "website.ProgressBarOption";
@@ -12,6 +15,10 @@ export class ProgressBarOption extends BaseOptionComponent {
     static cleanForSave(editingEl) {
         const progressBar = editingEl.querySelector(".progress-bar");
         const progressLabel = editingEl.querySelector(".s_progress_bar_text");
+        log.pipeline("ProgressBarOption cleanForSave", () => ({
+            striped: progressBar.classList.contains("progress-bar-striped"),
+            hiddenLabel: !!progressLabel?.classList.contains("d-none"),
+        }));
 
         if (!progressBar.classList.contains("progress-bar-striped")) {
             progressBar.classList.remove("progress-bar-animated");
@@ -39,7 +46,11 @@ class ProgressBarOptionPlugin extends Plugin {
 export class DisplayAction extends BuilderAction {
     static id = "display";
     apply({ editingElement, params: { mainParam: position } }) {
+        log.pipeline("DisplayAction apply", () => ({ position }));
         if (editingElement.classList.contains("progress")) {
+            log.logic("DisplayAction apply: move .progress to a wrapper", () => ({
+                hasBar: !!editingElement.querySelector(".progress-bar"),
+            }));
             editingElement.classList.remove("progress");
             const progressBarEl = editingElement.querySelector(".progress-bar");
             if (progressBarEl) {
@@ -58,6 +69,9 @@ export class DisplayAction extends BuilderAction {
         let progressLabel = editingElement.querySelector(".s_progress_bar_text");
 
         if (!progressLabel && position !== "none") {
+            log.logic("DisplayAction apply: create missing label", () => ({
+                position,
+            }));
             progressLabel = document.createElement("span");
             progressLabel.classList.add("s_progress_bar_text", "small");
             progressLabel.textContent = progressValue + "%";
@@ -83,6 +97,10 @@ export class ProgressBarValueAction extends BuilderAction {
         const progressBarEl = editingElement.querySelector(".progress-bar");
         const progressBarTextEl = editingElement.querySelector(".s_progress_bar_text");
         const progressMainEl = editingElement.querySelector(".progress");
+        log.pipeline("ProgressBarValueAction apply", () => ({
+            value,
+            hasText: !!progressBarTextEl,
+        }));
         if (progressBarTextEl) {
             progressBarTextEl.innerText = progressBarTextEl.innerText.replace(
                 /[0-9]+%/,

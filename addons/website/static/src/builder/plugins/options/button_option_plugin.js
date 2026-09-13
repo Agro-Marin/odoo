@@ -1,6 +1,9 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.button_option");
 
 const selector = "a.btn";
 const exclude = ".s_donation_donate_btn, .s_website_form_send";
@@ -29,6 +32,7 @@ class ButtonOptionPlugin extends Plugin {
 
     onCloned({ cloneEl }) {
         if (cloneEl.matches(selector) && !cloneEl.matches(exclude)) {
+            log.logic("ButtonOptionPlugin onCloned: adapt siblings, keep appearance");
             this.adaptButtons(cloneEl, { adaptAppearance: false });
         }
     }
@@ -37,6 +41,7 @@ class ButtonOptionPlugin extends Plugin {
         if (snippetEl.matches(selector) && !snippetEl.matches(exclude)) {
             const dropzoneEl = dragState.currentDropzoneEl;
             if (dropzoneEl.classList.contains("oe_grid_zone")) {
+                log.logic("ButtonOptionPlugin preview skipped: grid dropzone");
                 return;
             }
 
@@ -70,6 +75,7 @@ class ButtonOptionPlugin extends Plugin {
     resetPreview(snippetEl, dragState) {
         if (snippetEl.matches(selector) && !snippetEl.matches(exclude)) {
             if ("restoreButtonPreview" in dragState) {
+                log.logic("ButtonOptionPlugin restore drag and drop preview");
                 dragState.restoreButtonPreview();
                 delete dragState.restoreButtonPreview;
             }
@@ -78,6 +84,7 @@ class ButtonOptionPlugin extends Plugin {
 
     onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(selector) && !snippetEl.matches(exclude)) {
+            log.logic("ButtonOptionPlugin onSnippetDropped: adapt button");
             this.adaptButtons(snippetEl, {});
         }
     }
@@ -148,6 +155,12 @@ class ButtonOptionPlugin extends Plugin {
             }
             editingElement.classList.remove("s_custom_button");
         }
+        log.pipeline("ButtonOptionPlugin adaptButtons", () => ({
+            adaptAppearance,
+            isDragAndDropPreview,
+            hasSiblingButton: !!siblingButtonEl,
+            isWrapped: !!initialState.isWrapped,
+        }));
         return { ...initialState, previousSiblingEl, nextSiblingEl };
     }
 }

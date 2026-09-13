@@ -6,6 +6,7 @@ import { Plugin } from "@html_editor/plugin";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { withSequence } from "@html_editor/utils/resource";
 import { reactive } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import {
@@ -22,6 +23,8 @@ import { ThemeAdvancedOption } from "./theme_advanced_option.js";
 import { ThemeButtonOption } from "./theme_button_option.js";
 import { ThemeColorsOption } from "./theme_colors_option.js";
 import { ThemeHeadingsOption } from "./theme_headings_option.js";
+
+const log = makeLogger("website.builder.plugin.theme_tab");
 
 /**
  * @typedef { Object } ThemeTabShared
@@ -155,6 +158,7 @@ export class ThemeTabPlugin extends Plugin {
         let oneHasNoSaturation = false;
         const style = this.window.getComputedStyle(this.document.body);
         const baseStyle = getComputedStyle(document.body);
+        const endGrayScan = log.perf("setup gray scan");
         for (let id = 100; id <= 900; id += 100) {
             const gray = getCSSVariableValue(`${id}`, style);
             this.grays[id] = gray;
@@ -180,6 +184,10 @@ export class ThemeTabPlugin extends Plugin {
                 oneHasNoSaturation = true;
             }
         }
+        endGrayScan(() => ({
+            hues: hues.length,
+            saturationDiffs: saturationDiffs.length,
+        }));
         this.grayHueIsDefined = !!hues.length;
 
         this.grayParams[GRAY_PARAMS.HUE] = !hues.length
@@ -204,6 +212,12 @@ export class ThemeTabPlugin extends Plugin {
             : oneHasNoSaturation
               ? -100
               : 100;
+        log.lifecycle("setup", () => ({
+            grayHueIsDefined: this.grayHueIsDefined,
+            hue: this.grayParams[GRAY_PARAMS.HUE],
+            extraSaturation: this.grayParams[GRAY_PARAMS.EXTRA_SATURATION],
+            oneHasNoSaturation,
+        }));
     }
     getGrayParams() {
         return this.grayParams;
@@ -247,6 +261,7 @@ export class ThemeTabPlugin extends Plugin {
         el.dataset.name = name;
         this.document.body.appendChild(el);
         this._cleanups.push(() => el.remove());
+        log.lifecycle("getThemeOptionBlock element attached", () => ({ id }));
 
         options.selector = "*";
 
@@ -275,6 +290,7 @@ export class CustomizeGrayAction extends BuilderAction {
         return this.dependencies.themeTab.getGrayParams()[grayParamName];
     }
     async apply({ params: { mainParam: grayParamName }, value }) {
+        log.pipeline("CustomizeGrayAction apply", () => ({ grayParamName, value }));
         this.dependencies.themeTab.setGrayParams(grayParamName, parseInt(value));
         for (let i = 1; i < 10; i++) {
             const key = (100 * i).toString();
@@ -303,14 +319,23 @@ export class ChangeColorPaletteAction extends CustomizeWebsiteVariableAction {
     async load() {
         const style = this.window.getComputedStyle(this.document.body);
         const hasCustomizedColors = getCSSVariableValue("has-customized-colors", style);
+        log.logic("ChangeColorPaletteAction load", () => ({ hasCustomizedColors }));
         if (hasCustomizedColors && hasCustomizedColors !== "false") {
             return new Promise((resolve) => {
                 this.services.dialog.add(ConfirmationDialog, {
                     body: _t(
                         "Changing the color palette will reset all your color customizations, are you sure you want to proceed?",
                     ),
-                    confirm: () => resolve(true),
-                    cancel: () => resolve(false),
+                    confirm: () => {
+                        log.logic(
+                            "ChangeColorPaletteAction load: user confirmed reset",
+                        );
+                        resolve(true);
+                    },
+                    cancel: () => {
+                        log.logic("ChangeColorPaletteAction load: user cancelled");
+                        resolve(false);
+                    },
                 });
             });
         }
@@ -318,6 +343,7 @@ export class ChangeColorPaletteAction extends CustomizeWebsiteVariableAction {
     }
     async apply(context) {
         if (!context.loadResult) {
+            log.logic("ChangeColorPaletteAction apply skip: palette change refused");
             return;
         }
         await super.apply(context);
@@ -331,6 +357,7 @@ export class EditCustomCodeAction extends BuilderAction {
         this.canTimeout = false;
     }
     apply() {
+        log.lifecycle("EditCustomCodeAction apply: open EditHeadBodyDialog");
         this.services.dialog.add(EditHeadBodyDialog);
     }
 }
@@ -351,6 +378,7 @@ export class CustomizePageLayout extends CustomizeWebsiteVariableAction {
 
     async apply(...args) {
         await super.apply(...args);
+        log.pipeline("CustomizePageLayout apply: dispatch resize");
         this.window.dispatchEvent(new Event("resize"));
     }
 }

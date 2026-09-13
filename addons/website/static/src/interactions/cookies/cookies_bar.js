@@ -1,11 +1,14 @@
 /** @odoo-module native */
 import { cookie } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { Popup } from "@website/interactions/popup/popup";
 import { cloneContentEls } from "@website/js/utils";
 import { setUtmsHtmlDataset } from "@website/utils/misc";
+
+const log = makeLogger("website.interaction.cookies_bar");
 
 export class CookiesBar extends Popup {
     static selector = "#website_cookies_bar";
@@ -36,6 +39,10 @@ export class CookiesBar extends Popup {
     setup() {
         super.setup();
         this.showToggle();
+        log.lifecycle("CookiesBar setup", () => ({
+            popupAlreadyShown: this.popupAlreadyShown,
+            hasToggle: !!this.toggleEl,
+        }));
     }
 
     start() {
@@ -50,6 +57,9 @@ export class CookiesBar extends Popup {
                     "Cookie Policy",
                 )}</a></p>
             `).firstElementChild;
+            log.logic("CookiesBar start: insert footer cookie policy link", () => ({
+                container: copyrightFooterContainerEl.className,
+            }));
             this.insert(cookiePolicyLinkEl, copyrightFooterContainerEl);
         }
 
@@ -93,12 +103,21 @@ export class CookiesBar extends Popup {
                 newScriptEl,
                 originalTrackingCodeScriptEl,
             );
+            log.logic(
+                "CookiesBar start: tracking code consent script replaced",
+                () => ({
+                    hadAllConsentsGranted: !!window.allConsentsGranted,
+                }),
+            );
         }
     }
 
     showPopup() {
         super.showPopup();
         if (this.toggleEl) {
+            log.logic("CookiesBar showPopup: toggle present, toggle bar", () => ({
+                popupAlreadyShown: this.popupAlreadyShown,
+            }));
             this.onToggleCookiesBar();
         }
     }
@@ -114,12 +133,19 @@ export class CookiesBar extends Popup {
                 <i class="fa-regular fa-eye" alt="" aria-hidden="true"></i> <span class="o_cookies_bar_toggle_label"></span>
             </button>
             `).firstElementChild;
+            log.logic("CookiesBar showToggle: on policy page, insert toggle", () => ({
+                pathname: window.location.pathname,
+            }));
             this.insert(this.toggleEl, this.el, "beforebegin");
         }
     }
 
     onToggleCookiesBar() {
         this.cookieValue = cookie.get(this.el.id);
+        log.logic("CookiesBar onToggleCookiesBar", () => ({
+            hasCookie: !!this.cookieValue,
+            shown: this.modalEl.classList.contains("show"),
+        }));
         this.bsModal.toggle();
         this.popupAlreadyShown = false;
     }
@@ -130,6 +156,10 @@ export class CookiesBar extends Popup {
     onAcceptClick(ev) {
         const isFullConsent = ev.currentTarget.id === "cookies-consent-all";
         this.cookieValue = `{"required": true, "optional": ${isFullConsent}, "ts": ${Date.now()}}`;
+        log.logic("CookiesBar onAcceptClick: consent", () => ({
+            isFullConsent,
+            button: ev.currentTarget.id,
+        }));
         if (isFullConsent) {
             document.dispatchEvent(new Event("optionalCookiesAccepted"));
         } else {
@@ -152,6 +182,9 @@ export class CookiesBar extends Popup {
                 cookie.set(trackingFields[key], value, 31 * 24 * 60 * 60, "optional");
             }
         }
+        log.pipeline("CookiesBar onHideModal: utm cookies set", () => ({
+            utms: [...params.keys()].filter((key) => key in trackingFields),
+        }));
         setUtmsHtmlDataset();
     }
 
@@ -164,11 +197,18 @@ export class CookiesBar extends Popup {
             optionalAccepted = false;
         }
         if (optionalAccepted || !this.popupAlreadyShown) {
+            log.logic("CookiesBar onShowCookiesBar: skipped", () => ({
+                optionalAccepted,
+                popupAlreadyShown: this.popupAlreadyShown,
+            }));
             return;
         }
         this.bsModal.show();
 
         if (!isVisible(this.modalEl)) {
+            log.logic("CookiesBar onShowCookiesBar: bar blocked, not visible", () => ({
+                id: this.el.id,
+            }));
             window.alert(
                 _t("Our cookies bar was blocked by your browser or an extension."),
             );

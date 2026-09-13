@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Dropdown } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.mega_menu_dropdown");
 
 export class MegaMenuDropdown extends Interaction {
     static selector = "header#top";
@@ -28,13 +31,26 @@ export class MegaMenuDropdown extends Interaction {
                 this.desktopMegaMenuToggleEls.push(megaMenuToggleEl);
             }
         }
+        log.pipeline("MegaMenuDropdown setup: toggles split", () => ({
+            mobile: this.mobileMegaMenuToggleEls.length,
+            desktop: this.desktopMegaMenuToggleEls.length,
+        }));
         this.updateActiveMenuLinks();
     }
 
     updateActiveMenuLinks() {
         if (this.el.querySelector(".navbar #top_menu a.nav-link.active")) {
+            log.logic(
+                "MegaMenuDropdown updateActiveMenuLinks: top menu link already active",
+                () => ({
+                    pathname: window.location.pathname,
+                }),
+            );
             return;
         }
+        const endScan = log.perf(
+            "MegaMenuDropdown updateActiveMenuLinks: scan mega menus",
+        );
         const currentHrefWithoutHash = `${window.location.origin}${window.location.pathname}`;
         const megaMenuEls = this.el.querySelectorAll(".o_mega_menu");
         let matchingLink = null;
@@ -61,6 +77,7 @@ export class MegaMenuDropdown extends Interaction {
                 mobileMegaMenuToggleEl.classList.add("active");
             }
         });
+        endScan(() => ({ megaMenus: megaMenuEls.length }));
     }
 
     /**
@@ -70,6 +87,9 @@ export class MegaMenuDropdown extends Interaction {
         const hasMegaMenu =
             !!megaMenuToggleEl.parentElement.querySelector(".o_mega_menu");
         if (hasMegaMenu) {
+            log.logic("MegaMenuDropdown moveMegaMenu: already in place", () => ({
+                toggle: megaMenuToggleEl.className,
+            }));
             return;
         }
         const isMobileNavbar = !!megaMenuToggleEl.closest(".o_header_mobile");
@@ -85,6 +105,10 @@ export class MegaMenuDropdown extends Interaction {
         const megaMenuEl =
             previousMegaMenuToggleEl.parentElement.querySelector(".o_mega_menu");
 
+        log.pipeline("MegaMenuDropdown moveMegaMenu: move across navbars", () => ({
+            toMobile: isMobileNavbar,
+            index: megaMenuToggleIndex,
+        }));
         Dropdown.getOrCreateInstance(previousMegaMenuToggleEl).hide();
         megaMenuToggleEl.insertAdjacentElement("afterend", megaMenuEl);
     }
@@ -128,6 +152,9 @@ export class MegaMenuDropdown extends Interaction {
         const megaMenuToggleEls = ev.target
             .closest(".o_extra_menu_items")
             .querySelectorAll(".o_mega_menu_toggle");
+        log.pipeline("MegaMenuDropdown onTriggerExtraMenu", () => ({
+            toggles: megaMenuToggleEls.length,
+        }));
         megaMenuToggleEls.forEach((el) => this.moveMegaMenu(el));
     }
 }

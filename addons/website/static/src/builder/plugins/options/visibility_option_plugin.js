@@ -4,6 +4,7 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { pyToJsLocale } from "@web/core/l10n/utils";
 import { registry } from "@web/core/registry";
 import {
@@ -12,6 +13,8 @@ import {
 } from "@website/builder/option_sequence";
 
 import { VisibilityOption } from "./visibility_option.js";
+
+const log = makeLogger("website.builder.plugin.visibility_option");
 
 /**
  * @typedef {{ saveAttribute: string; attributeName: string; callWith: "code" | "name" | "value" | "id"; }[]} visibility_selector_parameters
@@ -76,6 +79,9 @@ class VisibilityOptionPlugin extends Plugin {
 
     setup() {
         this.optionsAttributes = this.getResource("visibility_selector_parameters");
+        log.lifecycle("VisibilityOptionPlugin setup", () => ({
+            attributes: this.optionsAttributes.length,
+        }));
     }
 
     normalizeCSSSelectors(rootEl) {
@@ -154,6 +160,12 @@ class VisibilityOptionPlugin extends Plugin {
             selectors += selector + ", ";
         }
         selectors = selectors.slice(0, -2);
+        log.pipeline("VisibilityOptionPlugin conditional selectors computed", () => ({
+            visibilityId,
+            onlyAttributes: onlyAttributes.length,
+            hideAttributes: hideAttributes.length,
+            hasSelectors: !!selectors,
+        }));
         if (selectors) {
             target.dataset.visibilitySelectors = selectors;
         } else {
@@ -172,6 +184,7 @@ export class ForceVisibleAction extends BuilderAction {
     static id = "forceVisible";
     static dependencies = ["visibility"];
     apply({ editingElement }) {
+        log.pipeline("ForceVisibleAction apply");
         this.dependencies.visibility.onOptionVisibilityUpdate(editingElement, true);
     }
     isApplied() {
@@ -197,6 +210,11 @@ export class ToggleDeviceVisibilityAction extends BuilderAction {
 
         const isMobile = this.services.website.context.isMobile;
         const show = visibility !== (isMobile ? "no_mobile" : "no_desktop");
+        log.logic("ToggleDeviceVisibilityAction apply", () => ({
+            visibility,
+            isMobile,
+            show,
+        }));
         this.dependencies.visibility.onOptionVisibilityUpdate(editingElement, show);
         this.dependencies.history.applyCustomMutation({
             apply: () => {},

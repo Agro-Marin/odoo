@@ -2,8 +2,11 @@
 import { isHtmlContentSupported } from "@html_editor/core/selection_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.snippets_powerbox");
 
 class SnippetsPowerboxPlugin extends Plugin {
     static id = "alert";
@@ -146,8 +149,10 @@ class SnippetsPowerboxPlugin extends Plugin {
             name,
         );
         if (!snippet) {
+            log.logic("insertSnippet skip: snippet not found", { name });
             return;
         }
+        log.pipeline("insertSnippet insert and add step", { name });
         const content = snippet.content.cloneNode(true);
         this.dependencies.dom.insert(content);
         this.dependencies.history.addStep();

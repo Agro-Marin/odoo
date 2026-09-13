@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
 
@@ -9,6 +10,8 @@ import { convertCSSColorToRgba } from "@web/core/utils/format/colors";
  * @property { ImageHoverPlugin['setHoverEffect'] } setHoverEffect
  * @property { ImageHoverPlugin['removeHoverEffect'] } removeHoverEffect
  */
+
+const log = makeLogger("website.builder.plugin.image_hover");
 
 export class ImageHoverPlugin extends Plugin {
     static id = "imageHover";
@@ -31,6 +34,9 @@ export class ImageHoverPlugin extends Plugin {
             let rbg = null;
             let opacity = null;
             const hoverEffectName = params.hoverEffect;
+            const endHoverSvg = log.perf("post_compute_shape hover effect", {
+                hoverEffectName,
+            });
             const hoverEffectsSvg = await this.getSvgHoverEffects();
             const hoverEffectEls = hoverEffectsSvg.querySelectorAll(
                 `#${hoverEffectName} > *`,
@@ -40,6 +46,12 @@ export class ImageHoverPlugin extends Plugin {
             });
             const animateEl = svg.querySelector("animate");
             const animateTransformEls = svg.querySelectorAll("animateTransform");
+            log.pipeline("hover effect elements appended", () => ({
+                hoverEffectName,
+                elements: hoverEffectEls.length,
+                animateTransforms: animateTransformEls.length,
+                hasColor: Boolean(params.hoverEffectColor),
+            }));
             const animateElValues = animateEl?.getAttribute("values");
             let animateTransformElValues =
                 animateTransformEls[0]?.getAttribute("values");
@@ -154,6 +166,7 @@ export class ImageHoverPlugin extends Plugin {
                     break;
                 }
             }
+            endHoverSvg();
         },
         remove_hover_effect_handlers: this.removeHoverEffect.bind(this),
         set_hover_effect_handlers: this.setHoverEffect.bind(this),
@@ -162,14 +175,17 @@ export class ImageHoverPlugin extends Plugin {
     defaultHoverEffectIntensity = 20;
 
     async setHoverEffect(imgEl, hoverEffectId = "overlay") {
+        const endProcess = log.perf("setHoverEffect processImage", { hoverEffectId });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: imgEl,
             newDataset: this.getDefaultValue(hoverEffectId),
         });
+        endProcess();
         updateAttributes();
     }
 
     async removeHoverEffect(imgEl) {
+        const endProcess = log.perf("removeHoverEffect processImage");
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: imgEl,
             newDataset: {
@@ -179,6 +195,7 @@ export class ImageHoverPlugin extends Plugin {
                 hoverEffectIntensity: undefined,
             },
         });
+        endProcess();
         updateAttributes();
     }
     /**
@@ -187,10 +204,13 @@ export class ImageHoverPlugin extends Plugin {
      */
     async getSvgHoverEffects() {
         if (this.hoverEffectsSvg) {
+            log.logic("getSvgHoverEffects: cached");
             return this.hoverEffectsSvg;
         }
         const hoverEffectsURL = "/website/static/src/svg/hover_effects.svg";
+        const endFetch = log.perf("getSvgHoverEffects fetch", { hoverEffectsURL });
         const text = await fetch(hoverEffectsURL).then((r) => r.text());
+        endFetch(() => ({ bytes: text.length }));
         const parser = new DOMParser();
         const xmlDoc = parser.parseFromString(text, "text/xml");
         this.hoverEffectsSvg = xmlDoc.getElementsByTagName("svg")[0];
@@ -228,11 +248,17 @@ export class SetHoverEffectAction extends BuilderAction {
         return editingElement.dataset.hoverEffect === hoverEffectId;
     }
     async apply({ editingElement, value: hoverEffectId, isPreviewing }) {
+        const endApply = log.perf("SetHoverEffectAction apply", () => ({
+            hoverEffectId,
+            isPreviewing,
+        }));
         await this.dependencies.imageHover.setHoverEffect(
             editingElement,
             hoverEffectId,
         );
+        endApply();
         if (isPreviewing) {
+            log.logic("SetHoverEffectAction apply: dispatch mouseenter for preview");
             setTimeout(() => {
                 editingElement.dispatchEvent(new Event("mouseenter"));
             });
@@ -251,12 +277,14 @@ export class SetHoverEffectIntensityAction extends BuilderAction {
         );
     }
     async apply({ editingElement, value: intensity }) {
+        const endApply = log.perf("SetHoverEffectIntensityAction apply", { intensity });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectIntensity: String(intensity),
             },
         });
+        endApply();
         updateAttributes();
     }
 }
@@ -268,12 +296,14 @@ export class SetHoverEffectColorAction extends BuilderAction {
         return editingElement.dataset.hoverEffectColor;
     }
     async apply({ editingElement, value: color }) {
+        const endApply = log.perf("SetHoverEffectColorAction apply", { color });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectColor: color,
             },
         });
+        endApply();
         updateAttributes();
     }
 }
@@ -287,12 +317,16 @@ export class SetHoverEffectStrokeWidthAction extends BuilderAction {
             : undefined;
     }
     async apply({ editingElement, value: strokeWidth }) {
+        const endApply = log.perf("SetHoverEffectStrokeWidthAction apply", {
+            strokeWidth,
+        });
         const updateAttributes = await this.dependencies.imagePostProcess.processImage({
             img: editingElement,
             newDataset: {
                 hoverEffectStrokeWidth: String(strokeWidth),
             },
         });
+        endApply();
         updateAttributes();
     }
 }

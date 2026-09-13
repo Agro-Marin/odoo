@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
+
+const log = makeLogger("website.builder.translation.save_translation");
 
 export class SaveTranslationPlugin extends Plugin {
     static id = "saveTranslation";
@@ -28,6 +31,7 @@ export class SaveTranslationPlugin extends Plugin {
         translations[currentWebsiteLang] = {};
         for (const [key, els] of Object.entries(groupedDelayTranslationElements)) {
             if (groupedDirtyElements[key]) {
+                log.logic("saveDelayTranslations: skip dirty group", { key });
                 continue;
             }
             updateTranslationProms.push(
@@ -39,6 +43,12 @@ export class SaveTranslationPlugin extends Plugin {
                 }),
             );
         }
+        log.pipeline("saveDelayTranslations: posting delayed translations", () => ({
+            cleanDelayed: cleanDelayTranslationEls.length,
+            groups: Object.keys(groupedDelayTranslationElements).length,
+            rpcs: updateTranslationProms.length,
+            lang: currentWebsiteLang,
+        }));
         return Promise.all(updateTranslationProms);
     }
     /**
@@ -55,6 +65,11 @@ export class SaveTranslationPlugin extends Plugin {
                             this.getEscapedElement(el).innerHTML,
                     })),
                 );
+            log.pipeline("saveTranslationElements: posting translations", () => ({
+                count: els.length,
+                model: els[0].dataset["oeModel"],
+                field: els[0].dataset["oeField"],
+            }));
             return rpc("/website/field/translation/update", {
                 model: els[0].dataset["oeModel"],
                 record_id: [Number(els[0].dataset["oeId"])],
@@ -62,7 +77,12 @@ export class SaveTranslationPlugin extends Plugin {
                 translations,
             });
         }
+        log.logic("saveTranslationElements: no source sha, save view", () => ({
+            count: els.length,
+        }));
+        const endSaveView = log.perf("saveTranslationElements saveView");
         await this.dependencies.savePlugin.saveView(els[0], false);
+        endSaveView();
         return true;
     }
 
@@ -91,6 +111,10 @@ export class SaveTranslationPlugin extends Plugin {
                 }
             }
         }
+        log.pipeline("getEscapedElement", () => ({
+            elements: allElements.length,
+            excluded: exclusionSet.size,
+        }));
         return escapedEl;
     }
 }

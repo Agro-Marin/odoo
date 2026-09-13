@@ -2,8 +2,11 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("website.builder.plugin.cookies_bar_option_plugin");
 
 /**
  * @typedef { Object } CookiesBarOptionShared
@@ -28,6 +31,7 @@ class CookiesBarOptionPlugin extends Plugin {
 
     setup() {
         this.savedSelectors = {};
+        log.lifecycle("CookiesBarOptionPlugin setup");
     }
 
     getSavedSelectors() {
@@ -41,9 +45,13 @@ export class SelectLayoutAction extends BuilderAction {
     apply({ editingElement, value: layout }) {
         const savedSelectors =
             this.dependencies.CookiesBarOptionPlugin.getSavedSelectors();
+        const endRender = log.perf("SelectLayoutAction render layout", () => ({
+            layout,
+        }));
         const templateEl = renderToElement(`website.cookies_bar.${layout}`, {
             websiteId: this.services.website.currentWebsite.id,
         });
+        endRender();
         const contentEl = editingElement.querySelector(".modal-content");
 
         const selectorsToKeep = [
@@ -67,6 +75,10 @@ export class SelectLayoutAction extends BuilderAction {
             }
         }
 
+        log.pipeline("SelectLayoutAction replace content", () => ({
+            layout,
+            savedSelectors: Object.keys(savedSelectors).length,
+        }));
         contentEl.replaceChildren(templateEl);
 
         switch (layout) {

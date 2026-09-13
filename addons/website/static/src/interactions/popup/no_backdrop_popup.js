@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { isScrollableY } from "@web/core/utils/dom/scrolling";
 import { Modal } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.no_backdrop_popup");
 
 export class NoBackdropPopup extends Interaction {
     static selector = ".s_popup_no_backdrop";
@@ -14,12 +17,14 @@ export class NoBackdropPopup extends Interaction {
     };
 
     setup() {
+        log.lifecycle("NoBackdropPopup setup", () => ({ id: this.el.id }));
         this.throttledUpdateScrollbar = this.throttled(this.updateScrollbar);
         this.removeResizeListener = null;
         this.resizeObserver = null;
     }
 
     destroy() {
+        log.lifecycle("NoBackdropPopup destroy", () => ({ id: this.el.id }));
         this.removeModalNoBackdropEvents();
         window.dispatchEvent(new Event("resize"));
     }
@@ -46,6 +51,9 @@ export class NoBackdropPopup extends Interaction {
             this.updateScrollbar();
         });
         this.resizeObserver.observe(this.el.querySelector(".modal-content"));
+        log.lifecycle("NoBackdropPopup resize listener and observer attached", () => ({
+            id: this.el.id,
+        }));
     }
 
     removeModalNoBackdropEvents() {
@@ -54,6 +62,12 @@ export class NoBackdropPopup extends Interaction {
             this.removeResizeListener();
             this.resizeObserver.disconnect();
             delete this.resizeObserver;
+            log.lifecycle(
+                "NoBackdropPopup resize listener and observer removed",
+                () => ({
+                    id: this.el.id,
+                }),
+            );
         }
     }
 }

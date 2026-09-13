@@ -71,6 +71,11 @@ odooLog.status()           odooLog.table()      odooLog.reset()      odooLog.log
 
 const _globals = /** @type {Record<string, any>} */ (globalThis);
 
+const STATE_KEY = "__odooLogState";
+// A bundle built with esbuild (web.assets_frontend_minimal) inlines its own copy of this
+// module; keeping the state on the window lets every copy share one spec, one stats table
+// and the console API instead of splitting them between bundles.
+const isFirstCopy = !_globals[STATE_KEY];
 /**
  * @type {{
  * version: number;
@@ -81,14 +86,14 @@ const _globals = /** @type {Record<string, any>} */ (globalThis);
  * loggers: Map<string, DebugLogger>;
  * }}
  */
-const state = {
+const state = (_globals[STATE_KEY] ||= {
     version: 0,
     spec: "",
     rules: [],
     silent: false,
     stats: new Map(),
     loggers: new Map(),
-};
+});
 
 /** @type {PerfEnd} */
 const NOOP_END = () => 0;
@@ -502,5 +507,7 @@ function _installGlobalApi() {
     };
 }
 
-_applySpec(_initialSpec());
+if (isFirstCopy) {
+    _applySpec(_initialSpec());
+}
 _installGlobalApi();

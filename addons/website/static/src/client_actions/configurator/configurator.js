@@ -18,6 +18,7 @@ import { browser } from "@web/core/browser/browser";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { router } from "@web/core/browser/router";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
@@ -31,6 +32,8 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 import { svgToPNG, webpToPNG } from "@website/js/utils";
 
 const sessionStorage = browser.sessionStorage;
+
+const log = makeLogger("website.configurator");
 
 export const ROUTES = {
     descriptionScreen: 2,
@@ -131,6 +134,7 @@ export class WelcomeScreen extends Component {
         navigate: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.state = useStore();
     }
 
@@ -147,6 +151,7 @@ export class DescriptionScreen extends Component {
         skip: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.industrySelection = useRef("industrySelection");
         this.purposeSelectionRef = useRef("purposeSelection");
         this.state = useStore();
@@ -165,6 +170,9 @@ export class DescriptionScreen extends Component {
             }
             this.dictionarySet = this.dictionarySet.union(industryWords);
         }
+        log.pipeline("DescriptionScreen dictionary built", () => ({
+            words: this.dictionarySet.size,
+        }));
 
         onMounted(() => this.onMounted());
 
@@ -233,6 +241,7 @@ export class DescriptionScreen extends Component {
      * @param {String} term
      */
     _autocompleteSearch(term) {
+        const endSearch = log.perf("DescriptionScreen autocompleteSearch", { term });
         this.state.selectedIndustry = undefined;
         const termsSet = this._splitToSet(term);
 
@@ -280,9 +289,11 @@ export class DescriptionScreen extends Component {
             }
         }
         if (matches.length === 0) {
+            log.logic("autocompleteSearch: no industry match, free label", { term });
             matches = [{ label: term, id: -1 }];
             terms = [term];
         }
+        endSearch(() => ({ matches: matches.length, terms }));
         return matches.map((match) => ({
             label: match.label,
             labelTermOrder: this._getMatchTermOrder(match.label, terms),
@@ -344,7 +355,15 @@ export class DescriptionScreen extends Component {
     checkDescriptionCompletion() {
         const { selectedType, selectedPurpose, selectedIndustry } = this.state;
         if (selectedType && selectedPurpose && selectedIndustry) {
+            log.logic("description complete: go to palette", () => ({
+                selectedType,
+                selectedPurpose,
+                industryId: selectedIndustry.id,
+            }));
             if (selectedIndustry.id === -1) {
+                log.logic("report configurator_missing_industry", () => ({
+                    label: selectedIndustry.label,
+                }));
                 this.orm.call("website", "configurator_missing_industry", [], {
                     unknown_industry: selectedIndustry.label,
                 });
@@ -367,6 +386,7 @@ export class PaletteSelectionScreen extends Component {
         skip: Function,
     };
     setup() {
+        useLifecycleLog(log);
         this.state = useStore();
         this.logoInputRef = useRef("logoSelectionInput");
         this.notification = useService("notification");
@@ -374,6 +394,7 @@ export class PaletteSelectionScreen extends Component {
 
         onMounted(() => {
             if (this.state.logo) {
+                log.logic("PaletteSelectionScreen mounted with logo: update palettes");
                 this.updatePalettes();
             }
         });
@@ -390,7 +411,9 @@ export class PaletteSelectionScreen extends Component {
         ev.stopPropagation();
         this.logoInputRef.el.value = "";
         if (this.state.logoAttachmentId) {
+            const endRemove = log.perf("removeLogo remove attachment");
             await this._removeAttachments([this.state.logoAttachmentId]);
+            endRemove();
         }
         this.state.changeLogo();
         this.state.setRecommendedPalette();
@@ -402,6 +425,10 @@ export class PaletteSelectionScreen extends Component {
             const previousLogoAttachmentId = this.state.logoAttachmentId;
             const file = logoSelectInput.files[0];
             if (file.size > 2500000) {
+                log.logic("changeLogo rejected: file too large", () => ({
+                    name: file.name,
+                    size: file.size,
+                }));
                 this.notification.add(
                     _t(
                         "The logo is too large. Please upload a logo smaller than 2.5 MB.",
@@ -413,19 +440,30 @@ export class PaletteSelectionScreen extends Component {
                 );
                 return;
             }
+            const endUpload = log.perf("changeLogo read+upload", () => ({
+                name: file.name,
+                size: file.size,
+            }));
             const data = await getDataURLFromFile(file);
             const attachment = await rpc("/web_editor/attachment/add_data", {
                 name: "logo",
                 data: data.split(",")[1],
                 is_image: true,
             });
+            endUpload(() => ({ attachmentId: attachment.id, error: attachment.error }));
             if (!attachment.error) {
                 if (previousLogoAttachmentId) {
+                    log.logic("changeLogo replace previous attachment", {
+                        previousLogoAttachmentId,
+                    });
                     await this._removeAttachments([previousLogoAttachmentId]);
                 }
                 this.state.changeLogo(data, attachment.id);
                 this.updatePalettes();
             } else {
+                log.logic("changeLogo upload error", () => ({
+                    error: attachment.error,
+                }));
                 this.notification.add(attachment.error, {
                     title: file.name,
                 });
@@ -435,23 +473,28 @@ export class PaletteSelectionScreen extends Component {
 
     async updatePalettes() {
         let img = this.state.logo;
+        const endConvert = log.perf("updatePalettes convert logo");
         if (img.startsWith("data:image/svg+xml")) {
             img = await svgToPNG(img);
         }
         if (img.startsWith("data:image/webp")) {
             img = await webpToPNG(img);
         }
+        endConvert();
         img = img.split(",")[1];
+        const endColors = log.perf("extract_image_primary_secondary_colors");
         const [color1, color2] = await this.orm.call(
             "base.document.layout",
             "extract_image_primary_secondary_colors",
             [img],
             { mitigate: 255 },
         );
+        endColors({ color1, color2 });
         this.state.setRecommendedPalette(color1, color2);
     }
 
     selectPalette(paletteName) {
+        log.logic("PaletteSelectionScreen selectPalette", { paletteName });
         this.state.selectPalette(paletteName);
         this.props.navigate(ROUTES.featuresSelectionScreen);
     }
@@ -465,26 +508,30 @@ export class PaletteSelectionScreen extends Component {
     }
 }
 
-const log = makeLogger("website.configurator");
-
 export class ApplyConfiguratorScreen extends Component {
     static template = "";
     static props = ["*"];
     setup() {
+        useLifecycleLog(log);
         this.websiteService = useService("website");
     }
 
     async applyConfigurator(themeName) {
+        log.logic("applyConfigurator", { themeName });
         if (!this.state.selectedIndustry) {
+            log.logic("applyConfigurator back: no industry");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
         if (!this.state.selectedPalette) {
+            log.logic("applyConfigurator back: no palette");
             return this.props.navigate(ROUTES.paletteSelectionScreen);
         }
         if (!this.state.selectedPurpose && !this.state.formerSelectedPurpose) {
+            log.logic("applyConfigurator back: no purpose");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
         if (!this.state.selectedType) {
+            log.logic("applyConfigurator back: no website type");
             return this.props.navigate(ROUTES.descriptionScreen);
         }
 
@@ -497,10 +544,16 @@ export class ApplyConfiguratorScreen extends Component {
                     data,
                 );
             } catch (error) {
+                log.logic("configurator_apply failed", () => ({
+                    retryCount,
+                    message: error?.message,
+                }));
                 await delay(5000);
                 if (retryCount < 3) {
+                    log.pipeline("configurator_apply retry", { retryCount });
                     return attemptConfiguratorApply(data, retryCount + 1);
                 }
+                log.logic("configurator_apply giving up", { retryCount });
                 document.querySelector(".o_website_loader_container").remove();
                 throw error;
             }
@@ -510,6 +563,9 @@ export class ApplyConfiguratorScreen extends Component {
             const selectedFeatures = Object.values(this.state.features)
                 .filter((feature) => feature.selected)
                 .map((feature) => feature.id);
+            log.pipeline("applyConfigurator show loader", () => ({
+                features: selectedFeatures.length,
+            }));
             this.websiteService.showLoader({
                 showTips: true,
                 selectedFeatures: selectedFeatures,
@@ -517,6 +573,7 @@ export class ApplyConfiguratorScreen extends Component {
             });
             let selectedPalette = this.state.selectedPalette.name;
             if (!selectedPalette) {
+                log.logic("applyConfigurator custom (recommended) palette");
                 selectedPalette = [
                     this.state.selectedPalette.color1,
                     this.state.selectedPalette.color2,
@@ -525,13 +582,18 @@ export class ApplyConfiguratorScreen extends Component {
                     this.state.selectedPalette.color5,
                 ];
             }
+            const endApply = log.perf("configurator_apply", { themeName });
             const resp = await attemptConfiguratorApply(
                 this.getConfigurationData(selectedFeatures, selectedPalette, themeName),
             );
+            endApply(() => ({ websiteId: resp.website_id }));
 
             this.props.clearStorage();
 
             this.websiteService.prepareOutLoader();
+            log.pipeline("applyConfigurator redirect to preview", () => ({
+                websiteId: resp.website_id,
+            }));
             redirect(
                 `/odoo/action-website.website_preview?website_id=${encodeURIComponent(
                     resp.website_id,
@@ -566,6 +628,7 @@ export class FeaturesSelectionScreen extends Component {
     };
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useStore();
     }
 
@@ -623,8 +686,11 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             this.extraThemeSVGPreviews.push(useRef(`ExtraThemePreview${i}`));
         }
         onWillStart(async () => {
+            const endThemes = log.perf("configurator_recommended_themes");
             const themes = await getRecommendedThemes(this.orm, this.state);
+            endThemes(() => ({ themes: themes.length }));
             if (!themes.length) {
+                log.logic("no recommended theme: apply theme_default");
                 await this.applyConfigurator("theme_default");
             } else {
                 this.state.updateRecommendedThemes(themes);
@@ -658,9 +724,13 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
      */
     blockUiDuringImageLoading(themes, themeSVGPreviews) {
         if (!themes.length) {
+            log.logic("blockUiDuringImageLoading skip: no themes");
             return;
         }
         const proms = [];
+        const endImages = log.perf("blockUiDuringImageLoading", () => ({
+            themes: themes.length,
+        }));
         this.uiService.block({ delay: 700 });
         themes.forEach((theme, idx) => {
             const svgEl = new DOMParser().parseFromString(
@@ -689,27 +759,39 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
             }
             themeSVGPreviews[idx].el.appendChild(svgEl);
         });
+        log.pipeline("theme previews appended, waiting images", () => ({
+            themes: themes.length,
+            images: proms.length,
+        }));
         Promise.allSettled(proms).then(() => {
+            endImages(() => ({ images: proms.length }));
             this.uiService.unblock();
         });
     }
 
     async chooseTheme(themeName) {
+        log.logic("chooseTheme", { themeName });
         await this.applyConfigurator(themeName);
     }
 
     async getMoreThemes() {
         this.uiService.block();
+        const endMore = log.perf("getMoreThemes");
         const themes = await getRecommendedThemes(
             this.orm,
             this.state,
             this.maxNbrDisplayExtraThemes,
         );
+        endMore(() => ({ themes: themes.length }));
         const mainThemeNames = this.state.themes.map((theme) => theme.name);
         this.state.extraThemes = themes.filter(
             (extraTheme) => !mainThemeNames.includes(extraTheme.name),
         );
         this.state.extraThemesLoaded = true;
+        log.pipeline("getMoreThemes extra themes", () => ({
+            fetched: themes.length,
+            main: mainThemeNames.length,
+        }));
         this.uiService.unblock();
     }
 
@@ -720,7 +802,9 @@ export class ThemeSelectionScreen extends ApplyConfiguratorScreen {
 
 export class Store {
     async start(getInitialState) {
+        const endStart = log.perf("Store start");
         Object.assign(this, await getInitialState());
+        endStart();
     }
 
     getWebsiteTypes() {
@@ -760,6 +844,7 @@ export class Store {
     }
 
     selectWebsiteType(id) {
+        log.logic("Store selectWebsiteType", { id });
         Object.values(this.features)
             .filter((feature) => feature.module_state !== "installed")
             .forEach((feature) => {
@@ -771,6 +856,7 @@ export class Store {
     }
 
     selectWebsitePurpose(id) {
+        log.logic("Store selectWebsitePurpose", { id });
         if (!id && this.selectedPurpose) {
             this.formerSelectedPurpose = this.selectedPurpose;
         }
@@ -800,6 +886,7 @@ export class Store {
     }
 
     selectPalette(paletteName) {
+        log.logic("Store selectPalette", { paletteName });
         if (paletteName === "recommendedPalette") {
             this.selectedPalette = this.recommendedPalette;
         } else {
@@ -810,10 +897,12 @@ export class Store {
     toggleFeature(featureId) {
         const feature = this.features[featureId];
         const isModuleInstalled = feature.module_state === "installed";
+        log.logic("Store toggleFeature", { featureId, isModuleInstalled });
         feature.selected = !feature.selected || isModuleInstalled;
     }
 
     setRecommendedPalette(color1, color2) {
+        log.logic("Store setRecommendedPalette", { color1, color2 });
         if (color1 && color2) {
             if (color1 === color2) {
                 color2 = mixCssColors("#FFFFFF", color1, 0.2);
@@ -857,12 +946,16 @@ export class Configurator extends Component {
     static props = { ...standardActionServiceProps };
 
     setup() {
+        useLifecycleLog(log);
         this.orm = useService("orm");
         this.action = useService("action");
         this.website = useService("website");
 
         useExternalListener(window, "popstate", (ev) => {
             if (ev.state && "configuratorStep" in ev.state) {
+                log.logic("popstate restore step", () => ({
+                    step: ev.state.configuratorStep,
+                }));
                 this.state.currentStep = ev.state.configuratorStep;
             }
         });
@@ -877,11 +970,17 @@ export class Configurator extends Component {
         useSubEnv({ store });
 
         onWillStart(async () => {
+            const endWebsite = log.perf("get_current_website");
             this.websiteId = (await this.orm.call("website", "get_current_website"))[0];
+            endWebsite(() => ({ websiteId: this.websiteId }));
 
             await store.start(() => this.getInitialState());
             this.updateStorage(store);
             if (!store.industries || store.configurator_done) {
+                log.logic("willStart: nothing to configure, skip", () => ({
+                    industries: Boolean(store.industries),
+                    done: store.configurator_done,
+                }));
                 await this.skipConfigurator();
             }
         });
@@ -953,11 +1052,18 @@ export class Configurator extends Component {
     }
 
     clearStorage() {
+        log.lifecycle("clearStorage", () => ({ key: this.storageItemName }));
         sessionStorage.removeItem(this.storageItemName);
     }
 
     async getInitialState() {
+        const endInit = log.perf("configurator_init");
         const results = await this.orm.call("website", "configurator_init");
+        endInit(() => ({
+            industries: results.industries?.length,
+            features: results.features?.length,
+            done: results.configurator_done,
+        }));
         const r = {
             industries: results.industries,
             logo: results.logo ? "data:image/png;base64," + results.logo : false,
@@ -990,12 +1096,21 @@ export class Configurator extends Component {
             });
             palettes[paletteName] = palette;
         });
+        log.pipeline("getInitialState palettes read", () => ({
+            palettes: PALETTE_NAMES.length,
+        }));
 
         const localState = JSON.parse(sessionStorage.getItem(this.storageItemName));
         if (localState) {
+            log.logic("getInitialState restore from sessionStorage", () => ({
+                industry: Boolean(localState.selectedIndustry),
+                palette: Boolean(localState.selectedPalette),
+            }));
             let themes = [];
             if (localState.selectedIndustry && localState.selectedPalette) {
+                const endThemes = log.perf("getInitialState recommended themes");
                 themes = await getRecommendedThemes(this.orm, localState);
+                endThemes(() => ({ themes: themes.length }));
             }
             return Object.assign(r, { ...localState, palettes, themes });
         }
@@ -1011,6 +1126,9 @@ export class Configurator extends Component {
                 : [];
         });
 
+        log.pipeline("getInitialState fresh state", () => ({
+            features: Object.keys(features).length,
+        }));
         const defaultColors = {};
         CUSTOM_BG_COLOR_ATTRS.forEach((attr) => {
             const color = getCSSVariableValue(`o-default-${attr}-bg`, style);
@@ -1053,7 +1171,9 @@ export class Configurator extends Component {
     async skipConfigurator() {
         log.logic("skipConfigurator");
         this.website.showLoader({ showTips: true });
+        const endSkip = log.perf("configurator_skip");
         const redirectUrl = await this.orm.call("website", "configurator_skip");
+        endSkip();
         this.clearStorage();
         await this.action.doAction(redirectUrl);
     }

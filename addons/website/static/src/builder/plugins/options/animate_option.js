@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { isImageSupportedForStyle } from "@html_builder/plugins/image/replace_media_option";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.animate_option");
 
 /**
  * @typedef {((el: HTMLElement) => Promise<boolean>)[]} hover_effect_allowed_predicates
@@ -26,6 +30,7 @@ export class AnimateOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState(async (editingElement) => {
             const hasAnimateClass = editingElement.classList.contains("o_animate");
             this.getDirectionsItems =

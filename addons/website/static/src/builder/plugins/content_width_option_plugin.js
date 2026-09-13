@@ -3,8 +3,11 @@ import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { CONTAINER_WIDTH } from "@website/builder/option_sequence";
+
+const log = makeLogger("website.builder.plugin.content_width_option");
 
 export class ContentWidthOption extends BaseOptionComponent {
     static template = "website.ContentWidthOption";
@@ -30,6 +33,10 @@ export class SetContainerWidthAction extends ClassAction {
     static id = "setContainerWidth";
     apply({ isPreviewing, editingElement }) {
         super.apply(...arguments);
+        log.pipeline("SetContainerWidthAction apply", () => ({
+            isPreviewing,
+            className: editingElement.className,
+        }));
         editingElement.classList.toggle("o_container_preview", isPreviewing);
     }
 }

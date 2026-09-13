@@ -9,6 +9,8 @@ import { formatsSpecs } from "@html_editor/utils/formatting";
 import { nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
 import { Component, reactive, useRef, useState, xml } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { isCSSColor, rgbaToHex } from "@web/core/utils/format/colors";
@@ -17,6 +19,8 @@ import { getCurrentTextHighlight } from "@website/js/highlight_utils";
 
 import { HighlightConfigurator } from "./highlight_configurator.js";
 import { StackingComponent, useStackingComponentState } from "./stacking_component.js";
+
+const log = makeLogger("website.builder.plugin.highlight");
 
 export class HighlightPlugin extends Plugin {
     static id = "highlight";
@@ -63,26 +67,33 @@ export class HighlightPlugin extends Plugin {
             ),
         ],
         normalize_handlers: (root) => {
+            const endNormalize = log.perf("normalize text_highlight_added dispatch");
             for (const node of root.querySelectorAll(".o_text_highlight")) {
                 node.dispatchEvent(
                     new Event("text_highlight_added", { bubbles: true }),
                 );
             }
+            endNormalize(() => ({
+                count: root.querySelectorAll(".o_text_highlight").length,
+            }));
         },
         format_class_predicates: (className) =>
             className.startsWith("o_text_highlight"),
         selectionchange_handlers: this.updateSelectedHighlight.bind(this),
         remove_all_formats_handlers: () => {
+            log.logic("stop text_highlight interaction: remove all formats");
             this.dependencies.edit_interaction.stopInteraction(
                 "website.text_highlight",
             );
         },
         format_selection_handlers: () => {
+            log.logic("stop text_highlight interaction: format selection");
             this.dependencies.edit_interaction.stopInteraction(
                 "website.text_highlight",
             );
         },
         before_save_handlers: () => {
+            log.logic("stop text_highlight interaction: before save");
             this.dependencies.edit_interaction.stopInteraction(
                 "website.text_highlight",
             );
@@ -90,6 +101,7 @@ export class HighlightPlugin extends Plugin {
     };
 
     setup() {
+        log.lifecycle("setup");
         this.previewableApplyHighlight =
             this.dependencies.history.makePreviewableOperation(
                 this._applyHighlight.bind(this),
@@ -137,6 +149,11 @@ export class HighlightPlugin extends Plugin {
         this.highlightState.highlightId =
             uniqueNodes.size > 1 ? "multiple" : getCurrentTextHighlight(nodes[0]);
         if (this.highlightState.highlightId) {
+            log.logic("updateSelectedHighlight: highlight in selection", () => ({
+                highlightId: this.highlightState.highlightId,
+                nodes: nodes.length,
+                unique: uniqueNodes.size,
+            }));
             const style = nodes.map((node) =>
                 getComputedStyle(node).getPropertyValue("--text-highlight-color"),
             );
@@ -163,6 +180,12 @@ export class HighlightPlugin extends Plugin {
             colorToRestore = style.getPropertyValue("--text-highlight-color");
             thicknessToRestore = style.getPropertyValue("--text-highlight-width");
         }
+        log.logic("_applyHighlight", () => ({
+            highlightId,
+            replacing: highlightedNodes.length,
+            colorToRestore,
+            thicknessToRestore,
+        }));
 
         this.dependencies.format.formatSelection("highlight", {
             formatProps: { highlightId, colorToRestore, thicknessToRestore },
@@ -184,6 +207,11 @@ export class HighlightPlugin extends Plugin {
 
     _applyHighlightStyle(style, value) {
         const highlightedNodes = this.getSelectedHighlightNodes();
+        log.pipeline("_applyHighlightStyle", () => ({
+            style,
+            value,
+            nodes: new Set(highlightedNodes).size,
+        }));
         for (const node of new Set(highlightedNodes)) {
             node.style.setProperty(style, value);
         }
@@ -200,6 +228,7 @@ export class HighlightPlugin extends Plugin {
         this.previewableApplyHighlightStyle.revert();
     }
     getUsedCustomColors() {
+        const endScan = log.perf("getUsedCustomColors");
         const highlights = this.editable.querySelectorAll(".o_text_highlight");
         const usedCustomColors = new Set();
         for (const highlight of highlights) {
@@ -209,6 +238,10 @@ export class HighlightPlugin extends Plugin {
                 usedCustomColors.add(rgbaToHex(color).toLowerCase());
             }
         }
+        endScan(() => ({
+            highlights: highlights.length,
+            colors: usedCustomColors.size,
+        }));
         return usedCustomColors;
     }
 
@@ -228,6 +261,10 @@ export class HighlightPlugin extends Plugin {
             );
         let { startContainer, startOffset, endContainer, endOffset, direction } =
             this.dependencies.selection.getEditableSelection();
+        log.logic("completeHighlightSelection", () => ({
+            targeted: targetedNodes.length,
+            direction,
+        }));
 
         if (targetedNodes.length > 0) {
             if (targetedNodes[0]?.matches?.(".o_text_highlight")) {
@@ -259,6 +296,7 @@ export class HighlightPlugin extends Plugin {
     }
 
     deleteSelectedHighlight() {
+        log.logic("deleteSelectedHighlight");
         this.dependencies.format.formatSelection("highlight", { applyStyle: false });
         this.updateSelectedHighlight();
     }
@@ -271,6 +309,10 @@ formatsSpecs.highlight = {
     addStyle: (node, { highlightId, thicknessToRestore, colorToRestore }) => {
         const styledNode = closestElement(node, ".o_text_highlight");
         if (styledNode) {
+            log.logic("highlight addStyle: replace existing highlight", () => ({
+                highlightId,
+                previous: styledNode.className,
+            }));
             formatsSpecs.highlight.removeStyle(styledNode);
             node = styledNode;
         }
@@ -313,6 +355,7 @@ class HighlightToolbarButton extends Component {
     `;
 
     setup() {
+        useLifecycleLog(log);
         this.highlightState = useState(
             this.props.highlightConfiguratorProps.getHighlightState(),
         );
@@ -325,6 +368,9 @@ class HighlightToolbarButton extends Component {
         this.configuratorPopover = usePopover(StackingComponent, {
             env: this.__owl__.childEnv,
             onClose: () => {
+                log.lifecycle("HighlightToolbarButton configurator closed", () => ({
+                    depth: this.componentStack.stack.length,
+                }));
                 while (this.componentStack.stack.length > 1) {
                     this.componentStack.pop();
                 }
@@ -332,6 +378,7 @@ class HighlightToolbarButton extends Component {
         });
     }
     openHighlightConfigurator() {
+        log.lifecycle("HighlightToolbarButton open configurator");
         this.props.onClick();
         this.configuratorPopover.open(this.root.el, {
             stackState: this.componentStack,

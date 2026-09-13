@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { browser } from "@web/core/browser/browser";
 import { isBrowserSafari } from "@web/core/browser/feature_detection";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { verifyHttpsUrl } from "@website/utils/misc";
+
+const log = makeLogger("website.snippet.s_searchbar.results");
 
 export class SearchBarResults extends Interaction {
     static selector = ".o_searchbar_form .o_dropdown_menu";
@@ -52,6 +55,7 @@ export class SearchBarResults extends Interaction {
         ".s_searchbar_fuzzy_submit": {
             "t-on-click.prevent": (event) => {
                 this.inputEl.value = event.target.textContent;
+                log.logic("fuzzy submit: searching suggested term");
                 const formEl = this.searchBarEl
                     .querySelector(".o_search_order_by")
                     .closest("form");
@@ -93,6 +97,12 @@ export class SearchBarResults extends Interaction {
                     document.documentElement.offsetHeight - searchPosition.bottom;
             }
         }
+        log.lifecycle("setup", () => ({
+            inMegaMenu: !!megaMenuEl,
+            scrollingParent: !!this.scrollingParentEl,
+            isDropup: this.isDropup,
+            items: this.el.children.length,
+        }));
     }
 
     onMousedown() {
@@ -135,6 +145,9 @@ export class SearchBarResults extends Interaction {
      * @param {PointerEvent} ev
      */
     onExtraLinkClick(ev) {
+        log.logic("onExtraLinkClick: navigating", () => ({
+            target: ev.currentTarget.dataset.target,
+        }));
         browser.location.href = verifyHttpsUrl(ev.currentTarget.dataset.target);
     }
 }

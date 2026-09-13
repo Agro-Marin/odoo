@@ -51,14 +51,24 @@ export class DynamicSnippet extends Interaction {
         this.isSingleMode =
             parseInt(this.el.dataset.numberOfRecords) === 1 &&
             !this.el.dataset.filterId;
+        log.logic("willStart: mode", () => ({
+            isSingleMode: this.isSingleMode,
+            filterId: this.el.dataset.filterId,
+            numberOfRecords: this.el.dataset.numberOfRecords,
+        }));
         await this.fetchData();
     }
 
     start() {
+        log.lifecycle("start", () => ({
+            templateKey: this.templateKey,
+            items: this.data.length,
+        }));
         this.render();
     }
 
     destroy() {
+        log.lifecycle("destroy: clearing rendered content");
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
         templateAreaEl.replaceChildren();
     }
@@ -121,10 +131,14 @@ export class DynamicSnippet extends Interaction {
     }
 
     prepareContent() {
+        const endPrepare = log.perf("prepareContent renderToFragment", () => ({
+            templateKey: this.templateKey,
+        }));
         this.renderedContentNode = renderToFragment(
             this.templateKey,
             this.getQWebRenderOptions(),
         );
+        endPrepare();
     }
 
     getQWebRenderOptions() {
@@ -167,12 +181,17 @@ export class DynamicSnippet extends Interaction {
 
     renderContent() {
         const templateAreaEl = this.el.querySelector(".dynamic_snippet_template");
+        const endRenderContent = log.perf("renderContent restart interactions");
         this.services["public.interactions"].stopInteractions(templateAreaEl);
         templateAreaEl.replaceChildren(this.renderedContentNode);
         this.services["public.interactions"].startInteractions(templateAreaEl);
+        endRenderContent(() => ({ nodes: templateAreaEl.childNodes.length }));
         this.waitForTimeout(() => {
             templateAreaEl.querySelectorAll(".carousel").forEach((carouselEl) => {
                 if (carouselEl.dataset.bsInterval === "0") {
+                    log.logic(
+                        "renderContent: disabling carousel autoplay for interval 0",
+                    );
                     delete carouselEl.dataset.bsRide;
                     delete carouselEl.dataset.bsInterval;
                 }
@@ -191,6 +210,9 @@ export class DynamicSnippet extends Interaction {
      * @param {Event} ev
      */
     callToAction(ev) {
+        log.logic("callToAction: navigating", () => ({
+            url: ev.currentTarget.dataset.url,
+        }));
         window.location = verifyHttpsUrl(ev.currentTarget.dataset.url);
     }
 }

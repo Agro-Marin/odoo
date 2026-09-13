@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { uniqueId } from "@web/core/utils/functions";
 import { Interaction } from "@web/public/interaction";
 import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";
+
+const log = makeLogger("website.interaction.background_video");
 
 export class BackgroundVideo extends Interaction {
     static selector = ".o_background_video";
@@ -39,6 +42,10 @@ export class BackgroundVideo extends Interaction {
         this.iframeID = uniqueId("o_bg_video_iframe_");
         this.iframeEl = null;
         this.bgVideoContainer = null;
+        log.lifecycle("BackgroundVideo setup", () => ({
+            videoSrc: this.videoSrc,
+            iframeID: this.iframeID,
+        }));
     }
 
     start() {
@@ -46,6 +53,10 @@ export class BackgroundVideo extends Interaction {
             this.videoSrc,
             !!this.el.dataset.needCookiesApproval,
         );
+        log.logic("BackgroundVideo start: autoplay setup", () => ({
+            hasPromise: !!promise,
+            needCookiesApproval: !!this.el.dataset.needCookiesApproval,
+        }));
         if (promise) {
             this.videoSrc += "&enablejsapi=1";
             this.waitFor(promise).then(this.bindDeferred(this.appendBgVideo));
@@ -54,6 +65,9 @@ export class BackgroundVideo extends Interaction {
         const resizeObserver = new ResizeObserver(this.__adjustIframe.bind(this));
         resizeObserver.observe(this.el.parentElement);
         resizeObserver.observe(this.el);
+        log.lifecycle("BackgroundVideo resize observer attached", () => ({
+            iframeID: this.iframeID,
+        }));
         this.registerCleanup(() => resizeObserver.disconnect());
     }
 
@@ -103,6 +117,11 @@ export class BackgroundVideo extends Interaction {
             this.el.querySelector(":scope > .o_bg_video_container");
         oldContainer?.remove();
 
+        log.logic("BackgroundVideo appendBgVideo", () => ({
+            allowedCookies,
+            replacedContainer: !!oldContainer,
+        }));
+        const endRender = log.perf("BackgroundVideo appendBgVideo: render");
         this.renderAt(
             "website.background.video",
             {
@@ -112,6 +131,7 @@ export class BackgroundVideo extends Interaction {
             this.el,
             "afterbegin",
         );
+        endRender();
 
         this.bgVideoContainer = this.el.querySelector(":scope > .o_bg_video_container");
         this.iframeEl = this.bgVideoContainer.querySelector(".o_bg_video_iframe");
@@ -119,6 +139,9 @@ export class BackgroundVideo extends Interaction {
             this.iframeEl,
             "load",
             () => {
+                log.lifecycle("BackgroundVideo iframe loaded", () => ({
+                    iframeID: this.iframeID,
+                }));
                 this.bgVideoContainer.querySelector(".o_bg_video_loading")?.remove();
                 this.adjustIframe();
             },

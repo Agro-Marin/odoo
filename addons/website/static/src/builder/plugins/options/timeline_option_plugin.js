@@ -7,10 +7,13 @@ import {
 } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { localization } from "@web/core/l10n/localization";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
+
+const log = makeLogger("website.builder.plugin.timeline_option");
 
 export const TIMELINE = before(WEBSITE_BACKGROUND_OPTIONS);
 export const DOT_LINES_COLOR = SNIPPET_SPECIFIC_END;
@@ -58,6 +61,10 @@ class TimelineOptionPlugin extends Plugin {
     setup() {
         this.isEditableRTL = this.config.isEditableRTL;
         this.isBackendRTL = localization.direction === "rtl";
+        log.lifecycle("TimelineOptionPlugin setup", () => ({
+            isEditableRTL: this.isEditableRTL,
+            isBackendRTL: this.isBackendRTL,
+        }));
     }
 
     getActiveOverlayButtons(target) {
@@ -88,6 +95,9 @@ class TimelineOptionPlugin extends Plugin {
         const timelineRowEl = this.overlayTarget.closest(".s_timeline_row");
         const timelineCardEls = timelineRowEl.querySelectorAll(".s_timeline_card");
         const firstContentEl = timelineRowEl.querySelector(".s_timeline_content");
+        log.pipeline("TimelineOptionPlugin moveTimelineCard", () => ({
+            cards: timelineCardEls.length,
+        }));
         timelineRowEl.append(firstContentEl);
         timelineCardEls.forEach((card) => card.classList.toggle("text-md-end"));
     }

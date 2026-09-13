@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { onWillStart, onWillUpdateProps, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 
@@ -17,6 +19,8 @@ import {
 
 const { DateTime } = luxon;
 
+const log = makeLogger("website.builder.option.form_field_option");
+
 export class FormFieldOption extends BaseOptionComponent {
     static template = "website.s_website_form_field_option";
     static dependencies = ["websiteFormOption"];
@@ -27,6 +31,7 @@ export class FormFieldOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         const { loadFieldOptionData } = this.dependencies.websiteFormOption;
         this.state = useState({
             availableFields: [],
@@ -110,7 +115,12 @@ export class FormFieldOption extends BaseOptionComponent {
 
         onWillStart(async () => {
             const el = this.env.getEditingElement();
+            const endLoadStart = log.perf("willStart loadFieldOptionData");
             const fieldOptionData = await loadFieldOptionData(el);
+            endLoadStart(() => ({
+                availableFields: fieldOptionData.availableFields.length,
+                conditionInputs: fieldOptionData.conditionInputs.length,
+            }));
             this.state.availableFields.push(...fieldOptionData.availableFields);
             this.state.conditionInputs.push(...fieldOptionData.conditionInputs);
             this.state.valueList = fieldOptionData.valueList;
@@ -118,7 +128,17 @@ export class FormFieldOption extends BaseOptionComponent {
         });
         onWillUpdateProps(async (props) => {
             const el = this.env.getEditingElement();
+            const endLoadUpdate = log.perf(
+                "willUpdateProps loadFieldOptionData",
+                () => ({
+                    redrawSequence: props.redrawSequence,
+                }),
+            );
             const fieldOptionData = await loadFieldOptionData(el);
+            endLoadUpdate(() => ({
+                availableFields: fieldOptionData.availableFields.length,
+                conditionInputs: fieldOptionData.conditionInputs.length,
+            }));
             this.state.availableFields.length = 0;
             this.state.availableFields.push(...fieldOptionData.availableFields);
             this.state.conditionInputs.length = 0;

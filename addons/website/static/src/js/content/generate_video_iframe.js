@@ -1,4 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.content.generate_video_iframe");
+
 const SUPPORTED_DOMAINS = [
     "youtu.be",
     "youtube.com",
@@ -17,6 +21,7 @@ function manageIframeSrcOnLoad(iframeEl, src) {
     if (!iframeEl.closest("[data-need-cookies-approval]")) {
         iframeEl.setAttribute("src", src);
     } else {
+        log.logic("iframe src held until cookies approval", () => ({ src }));
         iframeEl.dataset.nocookieSrc = src;
         iframeEl.setAttribute("src", "about:blank");
         iframeEl.dataset.needCookiesApproval = "true";
@@ -40,10 +45,12 @@ export function generateVideoIframe(parentEl, manageIframeSrcFct) {
     const src = parentEl.dataset.oeExpression || parentEl.dataset.src;
     const m = src.match(/^(?:https?:)?\/\/([^/?#]+)/);
     if (!m) {
+        log.logic("skip: video src is not an absolute URL", () => ({ src }));
         return;
     }
     const domain = m[1].replace(/^www\./, "");
     if (!SUPPORTED_DOMAINS.includes(domain)) {
+        log.logic("skip: unsupported video domain", () => ({ domain }));
         return;
     }
     const iframeEl = document.createElement("iframe");
@@ -51,6 +58,10 @@ export function generateVideoIframe(parentEl, manageIframeSrcFct) {
     iframeEl.setAttribute("allowfullscreen", "allowfullscreen");
     iframeEl.setAttribute("referrerpolicy", "strict-origin-when-cross-origin");
     parentEl.appendChild(iframeEl);
+    log.pipeline("video iframe created", () => ({
+        domain,
+        customSrcManager: !!manageIframeSrcFct,
+    }));
     manageIframeSrcFct
         ? manageIframeSrcFct(iframeEl, src)
         : manageIframeSrcOnLoad(iframeEl, src);
@@ -59,6 +70,9 @@ export function generateVideoIframe(parentEl, manageIframeSrcFct) {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+    log.pipeline("DOMContentLoaded video placeholders", () => ({
+        placeholders: document.querySelectorAll(".media_iframe_video").length,
+    }));
     for (const videoIframeEl of document.querySelectorAll(".media_iframe_video")) {
         if (!videoIframeEl.querySelector(":scope > iframe")) {
             generateVideoIframe(videoIframeEl);

@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { isElement } from "@html_editor/utils/dom_info";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.bootstrap_option");
 
 class BootstrapOptionPlugin extends Plugin {
     static id = "bootstrapOption";
@@ -28,9 +31,15 @@ class BootstrapOptionPlugin extends Plugin {
 
         if (record.type === "classList") {
             if (record.target.matches(".dropdown-toggle, .dropdown-menu")) {
+                log.logic("filterBootstrapMutations dropdown class", () => ({
+                    className: record.className,
+                }));
                 return !dropdownClasses.includes(record.className);
             }
             if (record.target.matches(".offcanvas, .offcanvas-backdrop")) {
+                log.logic("filterBootstrapMutations offcanvas class", () => ({
+                    className: record.className,
+                }));
                 return !offcanvasClasses.includes(record.className);
             }
             return true;

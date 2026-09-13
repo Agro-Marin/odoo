@@ -8,10 +8,13 @@ import {
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { LAYOUT, LAYOUT_GRID } from "@website/builder/option_sequence";
 
 import { LayoutGridOption, LayoutOption } from "./layout_option.js";
+
+const log = makeLogger("website.builder.plugin.layout_option");
 
 class LayoutOptionPlugin extends Plugin {
     static id = "LayoutOption";
@@ -33,6 +36,7 @@ class LayoutOptionPlugin extends Plugin {
         const offsetClasses = [...cloneElClassList].filter((cls) =>
             cls.match(/^offset-(lg-)?([0-9]{1,2})$/),
         );
+        log.pipeline("onCloned remove offset classes", { offsetClasses });
         cloneElClassList.remove(...offsetClasses);
     }
 }
@@ -46,8 +50,12 @@ export class SetGridLayoutAction extends BuilderAction {
     static dependencies = ["selection"];
     apply({ editingElement }) {
         if (isGrid(editingElement)) {
+            log.logic("SetGridLayoutAction apply skip: already grid");
             return;
         }
+        log.pipeline("SetGridLayoutAction apply toggle grid mode", () => ({
+            columns: getRow(editingElement)?.children.length,
+        }));
         toggleGridMode(
             editingElement,
             this.dependencies.selection.preserveSelection,
@@ -63,11 +71,15 @@ export class SetColumnLayoutAction extends BuilderAction {
     apply({ editingElement }) {
         const rowEl = getRow(editingElement);
         if (!isGrid(editingElement)) {
+            log.logic("SetColumnLayoutAction apply skip: not grid");
             return;
         }
 
         rowEl.classList.remove("o_grid_mode");
         const columnEls = rowEl.children;
+        log.pipeline("SetColumnLayoutAction apply convert columns", () => ({
+            count: columnEls.length,
+        }));
 
         for (const columnEl of columnEls) {
             reloadLazyImages(columnEl);

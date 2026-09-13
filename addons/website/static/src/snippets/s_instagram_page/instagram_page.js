@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_instagram_page");
 
 export class InstagramPage extends Interaction {
     static selector = ".s_instagram_page";
@@ -23,10 +26,17 @@ export class InstagramPage extends Interaction {
 
         const iframeWidth = parseInt(getComputedStyle(this.iframeEl).width);
         this.height = Math.ceil(0.659 * iframeWidth + (iframeWidth < 432 ? 156 : 203));
+        log.lifecycle("setup: iframe inserted", () => ({
+            iframeWidth,
+            height: this.height,
+        }));
     }
 
     start() {
         const src = `https://www.instagram.com/${this.el.dataset.instagramPage}/embed`;
+        log.lifecycle("start: src handed to cookie consent", () => ({
+            page: this.el.dataset.instagramPage,
+        }));
         this.services.website_cookies.manageIframeSrc(this.iframeEl, src);
     }
 
@@ -46,6 +56,10 @@ export class InstagramPage extends Interaction {
         }
         const height = parseInt(evDataJSON.details.height);
         if (height) {
+            log.logic("onMessage: MEASURE height applied", () => ({
+                previous: this.height,
+                height,
+            }));
             this.height = height;
         }
     }

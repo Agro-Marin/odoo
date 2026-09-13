@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getScrollingElement, isScrollableY } from "@web/core/utils/dom/scrolling";
 import { isVisible } from "@web/core/utils/dom/ui";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.animation");
 
 export class Animation extends Interaction {
     static selector = ".o_animate";
@@ -63,13 +66,26 @@ export class Animation extends Interaction {
         const style = window.getComputedStyle(this.el);
         this.playState = style.animationPlayState;
         this.delay = undefined;
+        log.lifecycle("Animation setup", () => ({
+            className: this.el.className,
+            isAnimateOnScroll: this.isAnimateOnScroll,
+            inDropdown: Array.isArray(this.windowUnlessDropdown),
+            scrollingTargetIsElement: this.scrollingTarget === this.scrollingElement,
+            playState: this.playState,
+        }));
     }
 
     start() {
         if (this.el.closest(".dropdown")) {
+            log.logic("Animation start: inside dropdown, skip", () => ({
+                className: this.el.className,
+            }));
             return;
         }
         if (!this.isAnimateOnScroll) {
+            log.logic("Animation start: reset before first scroll check", () => ({
+                className: this.el.className,
+            }));
             this.resetAnimation();
             this.updateContent();
         }
@@ -95,6 +111,10 @@ export class Animation extends Interaction {
                     this.el,
                     eventName,
                     () => {
+                        log.lifecycle("Animation ended", () => ({
+                            eventName,
+                            className: this.el.className,
+                        }));
                         this.isAnimating = false;
                         this.isAnimated = true;
                         window.dispatchEvent(new Event("resize"));
@@ -182,6 +202,11 @@ export class Animation extends Interaction {
             }
         } else {
             if (visible && this.playState === "paused") {
+                log.pipeline("Animation scroll: paused -> start", () => ({
+                    className: el.className,
+                    elTop,
+                    scrollTop,
+                }));
                 el.classList.add("o_visible");
                 this.startAnimation();
             } else if (
@@ -189,6 +214,11 @@ export class Animation extends Interaction {
                 el.classList.contains("o_animate_both_scroll") &&
                 this.playState === "running"
             ) {
+                log.pipeline("Animation scroll: running -> reset", () => ({
+                    className: el.className,
+                    elTop,
+                    scrollTop,
+                }));
                 el.classList.remove("o_visible");
                 this.resetAnimation();
             }

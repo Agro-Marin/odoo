@@ -65,9 +65,15 @@ export const websiteService = {
                     (!currentWebsiteId && !fullscreen) ||
                     (pageDocument && isVisible(pageDocument.querySelector(".modal")))
                 ) {
+                    log.logic("escape: fullscreen toggle skipped", () => ({
+                        currentWebsiteId,
+                        fullscreen,
+                        hasPageDocument: !!pageDocument,
+                    }));
                     return;
                 }
                 fullscreen = !fullscreen;
+                log.logic("escape: fullscreen toggled", () => ({ fullscreen }));
                 document.body.classList.toggle("o_website_fullscreen", fullscreen);
                 bus.trigger(
                     fullscreen
@@ -91,6 +97,11 @@ export const websiteService = {
                 currentWebsiteId = id;
             }
             currentWebsiteIdList.push(id);
+            log.pipeline("addWebsiteId", () => ({
+                id,
+                currentWebsiteId,
+                stack: [...currentWebsiteIdList],
+            }));
         }
 
         function removeWebsiteId() {
@@ -100,6 +111,10 @@ export const websiteService = {
             } else {
                 currentWebsiteId = null;
             }
+            log.pipeline("removeWebsiteId", () => ({
+                currentWebsiteId,
+                stack: [...currentWebsiteIdList],
+            }));
         }
 
         return {
@@ -113,6 +128,13 @@ export const websiteService = {
                     return;
                 }
                 if (id && id !== lastWebsiteId) {
+                    log.logic(
+                        "currentWebsiteId: website changed, invalidate snippet cache",
+                        () => ({
+                            id,
+                            lastWebsiteId,
+                        }),
+                    );
                     invalidateSnippetCache = true;
                     lastWebsiteId = id;
                 }
@@ -144,6 +166,7 @@ export const websiteService = {
                 }));
                 pageDocument = document;
                 if (!document) {
+                    log.logic("pageDocument: cleared, reset metadata");
                     currentMetadata = {};
                     contentWindow = null;
                     return;
@@ -151,6 +174,12 @@ export const websiteService = {
                 const { dataset } = document.documentElement;
                 const isWebsitePage = dataset && dataset.websiteId;
                 if (!isWebsitePage) {
+                    log.logic(
+                        "pageDocument: not a website page, empty metadata",
+                        () => ({
+                            url: document.location?.href,
+                        }),
+                    );
                     currentMetadata = {};
                 } else {
                     const {
@@ -203,6 +232,15 @@ export const websiteService = {
                             : "ltr",
                     };
                 }
+                log.pipeline("pageDocument metadata computed", () => ({
+                    isWebsitePage: !!isWebsitePage,
+                    viewXmlid: currentMetadata.viewXmlid,
+                    mainObject: currentMetadata.mainObject,
+                    contentMenus: currentMetadata.contentMenus?.length,
+                    editable: currentMetadata.editable,
+                    translatable: currentMetadata.translatable,
+                    lang: currentMetadata.lang,
+                }));
                 contentWindow = document.defaultView;
                 websiteSystrayRegistry.trigger("CONTENT-UPDATED");
             },
@@ -216,6 +254,7 @@ export const websiteService = {
                 return websitePublicEnv;
             },
             set websitePublicEnv(env) {
+                log.lifecycle("websitePublicEnv", () => ({ ready: !!env }));
                 websitePublicEnv = env;
                 context.isPublicRootReady = !!env;
             },
@@ -249,12 +288,17 @@ export const websiteService = {
                 return actionJsId;
             },
             set actionJsId(jsId) {
+                log.lifecycle("actionJsId", () => ({ from: actionJsId, to: jsId }));
                 actionJsId = jsId;
             },
             get invalidateSnippetCache() {
                 return invalidateSnippetCache;
             },
             set invalidateSnippetCache(value) {
+                log.logic("invalidateSnippetCache", () => ({
+                    from: invalidateSnippetCache,
+                    to: value,
+                }));
                 invalidateSnippetCache = value;
             },
 
@@ -268,6 +312,10 @@ export const websiteService = {
                 }));
                 this.websitePublicEnv = undefined;
                 if (lang) {
+                    log.logic("goToWebsite: lang switch redirect", () => ({
+                        lang,
+                        path,
+                    }));
                     invalidateSnippetCache = true;
                     path = `/website/lang/${encodeURIComponent(lang)}?r=${encodeURIComponent(
                         path,
@@ -287,11 +335,13 @@ export const websiteService = {
                 });
             },
             async fetchUserGroups() {
+                const endGroups = log.perf("fetchUserGroups");
                 [isRestrictedEditor, isDesigner, hasMultiWebsites] = await Promise.all([
                     user.hasGroup("website.group_website_restricted_editor"),
                     user.hasGroup("website.group_website_designer"),
                     user.hasGroup("website.group_multi_website"),
                 ]);
+                endGroups({ isRestrictedEditor, isDesigner, hasMultiWebsites });
             },
             async fetchWebsites() {
                 const endFetch = log.perf("fetchWebsites");
@@ -316,6 +366,7 @@ export const websiteService = {
                     blocking: blockingProcesses.length,
                 }));
                 if (!blockingProcesses.length) {
+                    log.lifecycle("preview blocked", () => ({ showLoader, processId }));
                     bus.trigger("BLOCK", { showLoader });
                 }
                 blockingProcesses.push(processId || ANONYMOUS_PROCESS_ID);
@@ -328,20 +379,28 @@ export const websiteService = {
                 const processIndex = blockingProcesses.indexOf(
                     processId || ANONYMOUS_PROCESS_ID,
                 );
+                log.logic("unblockPreview: process lookup", () => ({
+                    processIndex,
+                    known: processIndex > -1,
+                }));
                 if (processIndex > -1) {
                     blockingProcesses.splice(processIndex, 1);
                     if (blockingProcesses.length === 0) {
+                        log.lifecycle("preview unblocked", () => ({ processId }));
                         bus.trigger("UNBLOCK");
                     }
                 }
             },
             showLoader(props) {
+                log.lifecycle("showLoader", () => ({ props }));
                 bus.trigger("SHOW-WEBSITE-LOADER", props);
             },
             hideLoader() {
+                log.lifecycle("hideLoader");
                 bus.trigger("HIDE-WEBSITE-LOADER");
             },
             prepareOutLoader() {
+                log.lifecycle("prepareOutLoader");
                 bus.trigger("PREPARE-OUT-WEBSITE-LOADER");
             },
             /**
@@ -351,6 +410,11 @@ export const websiteService = {
             async getUserModelName(
                 model = this.currentWebsite.metadata.mainObject.model,
             ) {
+                log.logic("getUserModelName", () => ({
+                    model,
+                    cached: !!modelNamesProm,
+                }));
+                const endModelNames = log.perf("getUserModelName await model names");
                 if (!modelNamesProm) {
                     modelNamesProm = orm
                         .call("ir.model", "get_available_models")
@@ -361,10 +425,12 @@ export const websiteService = {
                             }
                         })
                         .catch(() => {
+                            log.logic("getUserModelName: fetch failed, cache reset");
                             modelNamesProm = null;
                         });
                 }
                 await modelNamesProm;
+                endModelNames(() => ({ model, found: model in modelNames }));
                 return modelNames[model] || _t("Data");
             },
         };

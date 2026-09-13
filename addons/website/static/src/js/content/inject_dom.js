@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { session } from "@web/session";
 import {
     getClosestLiEls,
@@ -6,7 +7,10 @@ import {
     unhideConditionalElements,
 } from "@website/utils/misc";
 
+const log = makeLogger("website.content.inject_dom");
+
 document.addEventListener("DOMContentLoaded", () => {
+    const endInject = log.perf("DOMContentLoaded inject");
     setUtmsHtmlDataset();
     const htmlEl = document.documentElement;
     const country = session.geoip_country_code;
@@ -14,6 +18,11 @@ document.addEventListener("DOMContentLoaded", () => {
         htmlEl.dataset.country = country;
     }
     htmlEl.dataset.logged = !session.is_website_user;
+    log.pipeline("html dataset set", () => ({
+        country: country || null,
+        logged: htmlEl.dataset.logged,
+        utmSource: htmlEl.dataset.utmSource || null,
+    }));
 
     unhideConditionalElements();
 
@@ -25,6 +34,7 @@ document.addEventListener("DOMContentLoaded", () => {
         ".o_mega_menu > section.o_snippet_mobile_invisible",
     );
     if (!mobileInvisibleMegaMenuLiEls.length) {
+        endInject(() => ({ mobileInvisibleMegaMenus: 0 }));
         return;
     }
 
@@ -38,4 +48,7 @@ document.addEventListener("DOMContentLoaded", () => {
         const index = desktopMegaMenuLiEls.indexOf(mobileInvisibleMegaMenuLiEl);
         mobileMegaMenuLiEls[index].classList.add("hidden_mega_menu_li");
     }
+    endInject(() => ({
+        mobileInvisibleMegaMenus: mobileInvisibleMegaMenuLiEls.length,
+    }));
 });

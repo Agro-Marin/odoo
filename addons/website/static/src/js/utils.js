@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { urlFunctions } from "@html_editor/utils/url";
 import { App, Component } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { getTemplate } from "@web/core/templates";
 import { _t, appTranslateFn } from "@web/core/translation";
 import { patch } from "@web/core/utils/patch";
 import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url_autocomplete";
+
+const log = makeLogger("website.utils.wutils");
 
 /**
  * @param {string} url
@@ -12,10 +15,13 @@ import { UrlAutoComplete } from "@website/components/autocomplete_with_pages/url
  * @returns {Deferred<string[]>}
  */
 function loadAnchors(url, body) {
+    const endAnchors = log.perf("loadAnchors", () => ({ url }));
     return new Promise(function (resolve, reject) {
         if (url === window.location.pathname || url[0] === "#") {
+            log.logic("loadAnchors: current page", () => ({ url, hasBody: !!body }));
             resolve(body ? body.outerHTML : document.body.outerHTML);
         } else if (url.length && !url.startsWith("http")) {
+            log.logic("loadAnchors: fetching internal page", () => ({ url }));
             fetch(window.location.origin + url)
                 .then((response) => response.text())
                 .then((text) => {
@@ -25,6 +31,9 @@ function loadAnchors(url, body) {
                 })
                 .then(resolve, reject);
         } else {
+            log.logic("loadAnchors: external or empty url, no anchors fetched", () => ({
+                url,
+            }));
             resolve();
         }
     })
@@ -41,9 +50,14 @@ function loadAnchors(url, body) {
             if (!anchors.includes("#bottom")) {
                 anchors.push("#bottom");
             }
+            endAnchors({ anchors: anchors.length });
             return anchors;
         })
         .catch((error) => {
+            log.logic("loadAnchors: failed, fall back to []", () => ({
+                url,
+                error: error?.message,
+            }));
             // eslint-disable-next-line no-console -- non-fatal fetch error, quiet debug diagnostic (falls back to [])
             console.debug(error);
             return [];
@@ -76,7 +90,13 @@ function autocompleteWithPages(input, options = {}, env = undefined) {
     );
     document.body.appendChild(container);
     owlApp.mount(container);
+    log.lifecycle("autocompleteWithPages mounted", () => ({
+        input: input?.name || input?.id,
+    }));
     return () => {
+        log.lifecycle("autocompleteWithPages destroyed", () => ({
+            input: input?.name || input?.id,
+        }));
         owlApp.destroy();
         container.remove();
     };
@@ -102,6 +122,12 @@ function onceAllImagesLoaded(element, excluded) {
             img.addEventListener("load", resolve, { once: true });
         });
     });
+    log.pipeline("onceAllImagesLoaded", () => ({
+        root: element.tagName,
+        images: imgs.length,
+        pending: defs.filter(Boolean).length,
+        hasExcluded: !!excluded,
+    }));
     return Promise.all(defs);
 }
 
@@ -115,6 +141,10 @@ function isHTTPSorNakedDomainRedirection(url1, url2) {
         url1 = new URL(url1).host;
         url2 = new URL(url2).host;
     } catch {
+        log.logic("isHTTPSorNakedDomainRedirection: unparsable url", () => ({
+            url1,
+            url2,
+        }));
         return false;
     }
     return url1 === url2 || url1.replace(/^www\./, "") === url2.replace(/^www\./, "");
@@ -151,6 +181,12 @@ export function sendRequest(route, params) {
         }
     }
 
+    log.pipeline("sendRequest: submitting form", () => ({
+        route,
+        method: form.getAttribute("method"),
+        forceTopWindow: !!params.forceTopWindow,
+        inputs: form.elements.length,
+    }));
     document.body.appendChild(form);
     form.submit();
 }
@@ -192,11 +228,18 @@ async function _exportToPNG(src, format) {
     if (src instanceof HTMLImageElement) {
         const loadedImgEl = src;
         if (checkImg(loadedImgEl)) {
+            log.logic(
+                "_exportToPNG: image already loaded, direct canvas export",
+                () => ({
+                    format,
+                }),
+            );
             return toPNGViaCanvas(loadedImgEl);
         }
         src = loadedImgEl.src;
     }
 
+    const endExport = log.perf("_exportToPNG load image", () => ({ format }));
     return new Promise((resolve) => {
         const imgEl = new Image();
         imgEl.onload = () => {
@@ -204,6 +247,12 @@ async function _exportToPNG(src, format) {
                 resolve(imgEl);
                 return;
             }
+            log.logic(
+                "_exportToPNG: svg without intrinsic size, refetch and resize",
+                () => ({
+                    src: imgEl.src.slice(0, 120),
+                }),
+            );
 
             imgEl.height = 1000;
             imgEl.style.opacity = 0;
@@ -230,7 +279,13 @@ async function _exportToPNG(src, format) {
             request.send();
         };
         imgEl.src = src;
-    }).then((loadedImgEl) => toPNGViaCanvas(loadedImgEl));
+    }).then((loadedImgEl) => {
+        endExport(() => ({
+            width: loadedImgEl.width,
+            height: loadedImgEl.height,
+        }));
+        return toPNGViaCanvas(loadedImgEl);
+    });
 }
 
 /**
@@ -289,6 +344,7 @@ function isMobile(self) {
 function getParsedDataFor(formId, parentEl) {
     const dataForEl = parentEl.querySelector(`[data-for='${formId}']`);
     if (!dataForEl) {
+        log.logic("getParsedDataFor: no data-for element", () => ({ formId }));
         return;
     }
     return JSON.parse(
@@ -314,6 +370,12 @@ export function cloneContentEls(content, keepScripts = false) {
         const els = [...content.children].map((el) => el.cloneNode(true));
         copyFragment.append(...els);
     }
+    log.pipeline("cloneContentEls", () => ({
+        fromString: typeof content === "string",
+        children: copyFragment.childElementCount,
+        scripts: copyFragment.querySelectorAll("script").length,
+        keepScripts,
+    }));
     if (!keepScripts) {
         copyFragment
             .querySelectorAll("script")
@@ -335,6 +397,11 @@ export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
         } else if (!seo_data.website_meta_description) {
             message = _t("Page description not set.");
         }
+        log.logic("checkAndNotifySEO", () => ({
+            hasTitle: !!seo_data.website_meta_title,
+            hasDescription: !!seo_data.website_meta_description,
+            notify: !!message,
+        }));
         if (message) {
             const closeNotification = services.notification.add(message, {
                 type: "warning",
@@ -343,6 +410,7 @@ export function checkAndNotifySEO(seo_data, OptimizeSEODialog, services) {
                     {
                         name: _t("Optimize SEO"),
                         onClick: () => {
+                            log.lifecycle("checkAndNotifySEO: open OptimizeSEODialog");
                             services.dialog.add(OptimizeSEODialog);
                             closeNotification();
                         },

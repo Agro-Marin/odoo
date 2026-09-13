@@ -1,5 +1,8 @@
 /** @odoo-module native */
 import { cookie as cookieManager } from "@web/core/browser/cookie";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.utils.misc");
 
 export class EventBus extends EventTarget {
     trigger(name, payload) {
@@ -12,6 +15,7 @@ export function getClosestLiEls(selector) {
 }
 
 export function unhideConditionalElements() {
+    const endUnhide = log.perf("unhideConditionalElements");
     const styleEl = document.createElement("style");
     styleEl.id = "conditional_visibility";
     document.head.appendChild(styleEl);
@@ -40,6 +44,11 @@ export function unhideConditionalElements() {
     for (const conditionalEl of conditionalEls) {
         conditionalEl.classList.remove("o_conditional_hidden");
     }
+    endUnhide(() => ({
+        conditional: conditionalEls.length,
+        megaMenus: desktopMegaMenuLiEls.length,
+        rules: styleEl.sheet.cssRules.length,
+    }));
 }
 
 export function setUtmsHtmlDataset() {
@@ -69,9 +78,13 @@ export function verifyHttpsUrl(link) {
     try {
         url = new URL(link, window.location.href);
     } catch {
+        log.logic("verifyHttpsUrl: unparsable link", () => ({ link }));
         return "";
     }
     if (url.protocol !== "http:" && url.protocol !== "https:") {
+        log.logic("verifyHttpsUrl: rejected protocol", () => ({
+            protocol: url.protocol,
+        }));
         return "";
     }
     return url;

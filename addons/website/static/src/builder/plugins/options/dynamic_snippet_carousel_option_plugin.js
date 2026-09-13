@@ -2,6 +2,7 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 
 import { DynamicSnippetCarouselOption } from "./dynamic_snippet_carousel_option.js";
@@ -9,6 +10,8 @@ import {
     DYNAMIC_SNIPPET,
     setDatasetIfUndefined,
 } from "./dynamic_snippet_option_plugin.js";
+
+const log = makeLogger("website.builder.plugin.dynamic_snippet_carousel_option");
 
 /**
  * @typedef { Object } DynamicSnippetCarouselOptionShared
@@ -49,6 +52,10 @@ class DynamicSnippetCarouselOptionPlugin extends Plugin {
         }
     }
     updateTemplateSnippetCarousel(el, template) {
+        log.pipeline("DynamicSnippetCarouselOptionPlugin update template", () => ({
+            rowPerSlide: template.rowPerSlide,
+            arrowPosition: template.arrowPosition,
+        }));
         if (template.rowPerSlide) {
             el.dataset.rowPerSlide = template.rowPerSlide;
         } else {
@@ -62,6 +69,9 @@ class DynamicSnippetCarouselOptionPlugin extends Plugin {
     }
     async onSnippetDropped({ snippetEl }) {
         if (snippetEl.matches(DynamicSnippetCarouselOption.selector)) {
+            log.logic("DynamicSnippetCarouselOptionPlugin snippet dropped", () => ({
+                snippet: snippetEl.dataset.snippet,
+            }));
             await this.setOptionsDefaultValues(snippetEl, this.modelNameFilter);
         }
     }
@@ -70,11 +80,18 @@ class DynamicSnippetCarouselOptionPlugin extends Plugin {
         modelNameFilter,
         contextualFilterDomain = [],
     ) {
+        const endDefaults = log.perf(
+            "DynamicSnippetCarouselOptionPlugin setOptionsDefaultValues",
+            () => ({
+                modelNameFilter,
+            }),
+        );
         await this.dependencies.dynamicSnippetOption.setOptionsDefaultValues(
             snippetEl,
             modelNameFilter,
             contextualFilterDomain,
         );
+        endDefaults();
         setDatasetIfUndefined(snippetEl, "carouselInterval", "5000");
     }
 }

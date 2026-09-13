@@ -1,5 +1,8 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { isVisible } from "@web/core/utils/dom/ui";
+
+const log = makeLogger("website.utils.text_processing");
 
 const _textHighlightFactory = {
     underline: (targetEl) => drawPath(targetEl, { mode: "line" }),
@@ -341,8 +344,13 @@ export function applyTextHighlight(topTextEl, highlightID) {
     const endHighlightUpdate = () =>
         topTextEl.dispatchEvent(new Event("text_highlight_added", { bubbles: true }));
     if (topTextEl.querySelector(".o_text_highlight_item") || !isVisible(topTextEl)) {
+        log.logic("applyTextHighlight: already highlighted or invisible, skip", () => ({
+            highlightID,
+            hasItems: !!topTextEl.querySelector(".o_text_highlight_item"),
+        }));
         return endHighlightUpdate();
     }
+    const endApply = log.perf("applyTextHighlight", () => ({ highlightID }));
     const style = window.getComputedStyle(topTextEl);
     if (!style.getPropertyValue("--text-highlight-width")) {
         topTextEl.style.setProperty(
@@ -388,6 +396,10 @@ export function applyTextHighlight(topTextEl, highlightID) {
             }
         });
     });
+    log.pipeline("applyTextHighlight: lines split", () => ({
+        childNodes: topTextEl.childNodes.length,
+        lines: lines.length,
+    }));
     topTextEl.replaceChildren(
         ...lines.map((textLine) =>
             nodeIsBR(textLine[0]) ? textLine[0] : createHighlightContainer(textLine),
@@ -401,6 +413,9 @@ export function applyTextHighlight(topTextEl, highlightID) {
             ),
         );
     });
+    endApply(() => ({
+        containers: topTextEl.querySelectorAll(".o_text_highlight_item").length,
+    }));
     endHighlightUpdate();
 }
 
@@ -409,6 +424,9 @@ export function applyTextHighlight(topTextEl, highlightID) {
  */
 export function removeTextHighlight(topTextEl) {
     topTextEl.dispatchEvent(new Event("text_highlight_remove", { bubbles: true }));
+    log.pipeline("removeTextHighlight", () => ({
+        units: topTextEl.querySelectorAll(".o_text_highlight_item").length,
+    }));
     [...topTextEl.querySelectorAll(".o_text_highlight_item")].forEach((unit) => {
         unit.after(...[...unit.childNodes].filter((node) => node.tagName !== "svg"));
         unit.remove();

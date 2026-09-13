@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, onWillStart, useEffect, useState } from "@odoo/owl";
 import { router } from "@web/core/browser/router";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { useService } from "@web/core/utils/hooks";
 import { Layout } from "@web/search/layout";
@@ -8,11 +10,14 @@ import { standardActionServiceProps } from "@web/webclient/actions";
 
 import { HierarchyNavbar } from "./hierarchy_navbar.js";
 
+const log = makeLogger("website.backend.view_hierarchy");
+
 export class ViewHierarchy extends Component {
     static components = { Layout, HierarchyNavbar };
     static template = "website.view_hierarchy";
     static props = { ...standardActionServiceProps };
     setup() {
+        useLifecycleLog(log);
         this.action = useService("action");
         this.orm = useService("orm");
         this.state = useState({ showInactive: false, searchedView: {}, viewTree: {} });
@@ -24,6 +29,9 @@ export class ViewHierarchy extends Component {
         this.hideGenericViewByWebsite = {};
 
         onWillStart(async () => {
+            const endHierarchy = log.perf("get_view_hierarchy", () => ({
+                viewId: this.viewId,
+            }));
             ({ sibling_views: this.siblingViews, hierarchy: this.state.viewTree } =
                 await this.orm.call(
                     "ir.ui.view",
@@ -31,10 +39,15 @@ export class ViewHierarchy extends Component {
                     [this.viewId],
                     {},
                 ));
+            endHierarchy();
 
             this.setupWebsiteNames();
             this.setupHideGenericViewByWebsite();
             this.linkViewsToParent();
+            log.pipeline("hierarchy prepared", () => ({
+                viewId: this.viewId,
+                siblings: this.siblingViews?.length,
+            }));
         });
 
         useEffect(
@@ -54,6 +67,7 @@ export class ViewHierarchy extends Component {
      * @param {String} websiteName
      */
     selectWebsite(websiteName) {
+        log.logic("selectWebsite", () => ({ websiteName }));
         this.websites.selected = websiteName;
     }
 
@@ -61,6 +75,7 @@ export class ViewHierarchy extends Component {
      * @param {Boolean} checked
      */
     toggleInactive(checked) {
+        log.logic("toggleInactive", () => ({ checked }));
         this.state.showInactive = checked;
     }
 
@@ -109,6 +124,13 @@ export class ViewHierarchy extends Component {
         }
 
         const view = matches[index];
+        log.logic("searchView", () => ({
+            keyword,
+            forward,
+            matches: matches.length,
+            index,
+            found: !!view,
+        }));
         if (view) {
             this.state.searchedView = {
                 id: view.id,
@@ -203,6 +225,7 @@ export class ViewHierarchy extends Component {
      * @param {Number} viewId
      */
     onShowDiffClick(viewId) {
+        log.lifecycle("open reset view arch wizard", () => ({ viewId }));
         this.action.doAction("base.reset_view_arch_wizard_action", {
             additionalContext: {
                 active_model: "ir.ui.view",
@@ -215,6 +238,7 @@ export class ViewHierarchy extends Component {
      * @param {Number} viewId
      */
     openFormView(viewId) {
+        log.lifecycle("open view form", () => ({ viewId }));
         this.action.doAction({
             type: "ir.actions.act_window",
             res_model: "ir.ui.view",
@@ -227,6 +251,7 @@ export class ViewHierarchy extends Component {
      * @param {Number} viewId
      */
     onShowHierarchy(viewId) {
+        log.lifecycle("open view hierarchy", () => ({ viewId }));
         this.action.doAction({
             type: "ir.actions.client",
             tag: "website_view_hierarchy",

@@ -13,6 +13,7 @@ import {
 import { isBrowserFirefox } from "@web/core/browser/feature_detection";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
 import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useAutofocus, useService } from "@web/core/utils/hooks";
@@ -26,6 +27,8 @@ import {
 import { onceAllImagesLoaded } from "@website/utils/images";
 
 const NO_OP = () => {};
+
+const log = makeLogger("website.dialog.add_page");
 
 export class AddPageConfirmDialog extends Component {
     static template = "website.AddPageConfirmDialog";
@@ -43,6 +46,7 @@ export class AddPageConfirmDialog extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         useAutofocus();
 
         this.state = useState({
@@ -54,10 +58,16 @@ export class AddPageConfirmDialog extends Component {
     }
 
     onChangeAddMenu(value) {
+        log.logic("AddPageConfirmDialog addMenu", { value });
         this.state.addMenu = value;
     }
 
     async addPage() {
+        log.pipeline("AddPageConfirmDialog confirm", () => ({
+            name: this.state.name,
+            addMenu: this.state.addMenu,
+            templateId: this.state.templateId,
+        }));
         await this.props.createPage(
             this.state.sectionsArch,
             this.state.name,
@@ -77,6 +87,7 @@ class AddPageTemplateBlank extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.holderRef = useRef("holder");
 
         onMounted(async () => {
@@ -85,6 +96,7 @@ class AddPageTemplateBlank extends Component {
     }
 
     select() {
+        log.logic("AddPageTemplateBlank select");
         this.env.addPage();
     }
 }
@@ -106,6 +118,7 @@ class AddPageTemplatePreview extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.iframeRef = useRef("iframe");
         this.previewRef = useRef("preview");
         this.holderRef = useRef("holder");
@@ -118,6 +131,9 @@ class AddPageTemplatePreview extends Component {
             }
         });
         onWillUnmount(() => {
+            log.lifecycle("AddPageTemplatePreview observer disconnected", () => ({
+                key: this.props.template.key,
+            }));
             this.resizeObserver.disconnect();
             clearTimeout(this._adjustHeightTimeout);
         });
@@ -126,12 +142,18 @@ class AddPageTemplatePreview extends Component {
             const holderEl = this.holderRef.el;
             holderEl.classList.add("o_loading");
             if (!this.props.template.key) {
+                log.logic("AddPageTemplatePreview skip: placeholder template");
                 return;
             }
+            const endPreview = log.perf("AddPageTemplatePreview render", () => ({
+                key: this.props.template.key,
+                isCustom: this.props.isCustom,
+            }));
             const previewEl = this.previewRef.el;
             const iframeEl = this.iframeRef.el;
             const isFirefox = isBrowserFirefox();
             if (isFirefox) {
+                log.logic("AddPageTemplatePreview firefox: wait iframe body load");
                 await new Promise((resolve) => {
                     iframeEl.contentDocument.body.onload = resolve;
                 });
@@ -207,18 +229,27 @@ class AddPageTemplatePreview extends Component {
             const wrapEl = templateDocument.getElementById("wrap");
             mainEl.appendChild(wrapEl);
             const lazyLoadedImgEls = wrapEl.querySelectorAll("img[loading=lazy]");
+            log.pipeline("AddPageTemplatePreview template injected", () => ({
+                key: this.props.template.key,
+                lazyImages: lazyLoadedImgEls.length,
+                sections: wrapEl.children.length,
+            }));
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "eager");
             }
             mainEl.appendChild(wrapEl);
+            const endImages = log.perf("AddPageTemplatePreview images loaded");
             await onceAllImagesLoaded(wrapEl).catch(() => {});
+            endImages();
             for (const imgEl of lazyLoadedImgEls) {
                 imgEl.setAttribute("loading", "lazy");
             }
             if (!this.previewRef.el) {
+                log.logic("AddPageTemplatePreview unmounted while loading images");
                 return;
             }
             await iframeEl.contentDocument.fonts.ready;
+            endPreview();
             holderEl.classList.remove("o_loading");
             let lastHeight = -1;
             let stableCount = 0;
@@ -245,8 +276,14 @@ class AddPageTemplatePreview extends Component {
             };
             adjustHeight();
             if (this.props.isCustom) {
+                log.logic("AddPageTemplatePreview adapt custom template");
                 this.adaptCustomTemplate(wrapEl);
             }
+            log.pipeline("AddPageTemplatePreview observe text highlights", () => ({
+                highlights:
+                    iframeEl.contentDocument?.querySelectorAll(".o_text_highlight")
+                        .length || 0,
+            }));
             for (const textEl of iframeEl.contentDocument?.querySelectorAll(
                 ".o_text_highlight",
             ) || []) {
@@ -263,6 +300,10 @@ class AddPageTemplatePreview extends Component {
         )) {
             const style = window.getComputedStyle(sectionEl);
             if (!style.height || style.display === "none") {
+                log.logic("adaptCustomTemplate dynamic section: no preview", () => ({
+                    snippet: sectionEl.dataset.snippet,
+                    name: sectionEl.dataset.name,
+                }));
                 const messageEl = renderToElement(
                     "website.AddPageTemplatePreviewDynamicMessage",
                     {
@@ -279,6 +320,7 @@ class AddPageTemplatePreview extends Component {
 
     select() {
         if (this.holderRef.el.classList.contains("o_loading")) {
+            log.logic("AddPageTemplatePreview select ignored: still loading");
             return;
         }
         const wrapEl = this.iframeRef.el.contentDocument
@@ -294,6 +336,10 @@ class AddPageTemplatePreview extends Component {
         for (const textHighlightEl of wrapEl.querySelectorAll(".o_text_highlight")) {
             removeTextHighlight(textHighlightEl);
         }
+        log.pipeline("AddPageTemplatePreview select", () => ({
+            templateId,
+            sections: wrapEl.children.length,
+        }));
         this.env.addPage(
             wrapEl.innerHTML,
             this.props.template.name && _t("Copy of %s", this.props.template.name),
@@ -321,6 +367,7 @@ class AddPageTemplatePreviews extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
     }
 
     get columns() {
@@ -345,6 +392,7 @@ class AddPageTemplates extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.website = useService("website");
         this.tabsRef = useRef("tabs");
         this.panesRef = useRef("panes");
@@ -368,6 +416,9 @@ class AddPageTemplates extends Component {
 
         onWillStart(() => {
             this.preparePages().then((pages) => {
+                log.pipeline("AddPageTemplates pages ready", () => ({
+                    pages: pages.length,
+                }));
                 this.state.pages = pages;
             });
         });
@@ -380,16 +431,22 @@ class AddPageTemplates extends Component {
             { silent: true },
         );
 
+        const endCss = log.perf("AddPageTemplates await css links");
         await this.env.getCssLinkEls();
+        endCss();
         if (status(this) === "destroyed") {
+            log.logic("preparePages abort: destroyed");
             return new Promise(() => {});
         }
 
         if (this.pages) {
+            log.logic("preparePages cached");
             return this.pages;
         }
 
+        const endTemplates = log.perf("get_new_page_templates");
         const newPageTemplates = await loadTemplates;
+        endTemplates(() => ({ groups: newPageTemplates.length }));
         newPageTemplates[0].templates.unshift({
             isBlank: true,
         });
@@ -403,10 +460,15 @@ class AddPageTemplates extends Component {
             });
         }
         this.pages = pages;
+        log.pipeline("preparePages built", () => ({
+            pages: pages.length,
+            templates: newPageTemplates.reduce((n, t) => n + t.templates.length, 0),
+        }));
         return pages;
     }
 
     onTabListBtnClick(id) {
+        log.logic("AddPageTemplates tab", { id });
         for (const page of this.state.pages) {
             if (page.id === id) {
                 page.isAccessed = true;
@@ -445,8 +507,6 @@ class AddPageTemplates extends Component {
     }
 }
 
-const log = makeLogger("website.dialog.add_page");
-
 export class AddPageDialog extends Component {
     static template = "website.AddPageDialog";
     static props = {
@@ -483,6 +543,7 @@ export class AddPageDialog extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         useAutofocus();
 
         this.primaryTitle = _t("Create");
@@ -507,6 +568,11 @@ export class AddPageDialog extends Component {
     }
 
     async addPage(sectionsArch, name, templateId) {
+        log.logic("addPage", () => ({
+            forcedURL: this.props.forcedURL,
+            templateId,
+            blank: !sectionsArch,
+        }));
         if (this.props.forcedURL) {
             await this.createPage(
                 sectionsArch,
@@ -532,6 +598,7 @@ export class AddPageDialog extends Component {
             sections: Boolean(sectionsArch),
         }));
         const pageName = name.replace(/^\/*/, "") || _t("New Page");
+        const endPost = log.perf("createPage /website/add", { pageName });
         const data = await this.http.post(
             `/website/add/${encodeURIComponent(pageName)}`,
             {
@@ -543,6 +610,11 @@ export class AddPageDialog extends Component {
                 page_title: pageTitle,
             },
         );
+        endPost(() => ({ url: data.url, viewId: data.view_id }));
+        log.logic("createPage after create", () => ({
+            openViewForm: Boolean(data.view_id),
+            goToPage: this.props.goToPage,
+        }));
         if (data.view_id) {
             this.action.doAction({
                 res_model: "ir.ui.view",
@@ -572,15 +644,21 @@ export class AddPageDialog extends Component {
                     'iframe:not([src="/website/iframefallback"])',
                 );
                 if (iframe?.contentDocument.body.getAttribute("is-ready") === "true") {
+                    log.logic("getCssLinkEls from preview iframe");
                     resolve(
                         iframe.contentDocument.head.querySelectorAll(
                             "link[type='text/css']",
                         ),
                     );
                 } else {
+                    log.logic("getCssLinkEls fetch homepage", () => ({
+                        iframe: Boolean(iframe),
+                    }));
+                    const endFetch = log.perf("getCssLinkEls fetch /website/force");
                     this.http
                         .get(`/website/force/${this.props.websiteId}?path=/`, "text")
                         .then((html) => {
+                            endFetch(() => ({ bytes: html.length }));
                             const doc = new DOMParser().parseFromString(
                                 html,
                                 "text/html",

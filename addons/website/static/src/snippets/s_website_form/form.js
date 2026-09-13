@@ -87,33 +87,54 @@ export class Form extends Interaction {
         this.disableDateTimePickers = [];
         this.preFillValues = {};
         this.lastFormData = this.getFormDataIncludingDisabledFields(this.el);
+        log.lifecycle("setup", () => ({
+            model: this.el.dataset.model_name,
+            hiddenIfInputs: this.inputEls.length,
+            dateFields: this.dateFieldEls.length,
+        }));
     }
 
     async willStart() {
+        log.logic("willStart", () => ({
+            recaptcha: !this.el.classList.contains("s_website_form_no_recaptcha"),
+            userPrefill: !!user.userId,
+        }));
         if (!this.el.classList.contains("s_website_form_no_recaptcha")) {
             this.recaptchaLoaded = true;
+            const endRecaptcha = log.perf("willStart recaptcha loadLibs");
             await this.recaptcha.loadLibs();
+            endRecaptcha();
         }
         if (user.userId) {
             const fields = this.getUserPreFillFields();
             const readFields = fields.map((field) =>
                 field === "phone" ? "phone_ids" : field,
             );
+            const endReadUser = log.perf(
+                "willStart read res.users prefill",
+                readFields,
+            );
             this.preFillValues =
                 (
                     await this.services.orm.read("res.users", [user.userId], readFields)
                 )[0] || {};
+            endReadUser();
             if (fields.includes("phone")) {
                 const [phoneId] = this.preFillValues.phone_ids || [];
                 let phone;
                 if (phoneId) {
+                    const endReadPhone = log.perf("willStart read phone.number");
                     try {
                         [phone] = await this.services.orm.read(
                             "phone.number",
                             [phoneId],
                             ["number"],
                         );
+                        endReadPhone();
                     } catch {
+                        log.logic(
+                            "willStart: phone.number read failed, no phone prefill",
+                        );
                         phone = undefined;
                     }
                 }
@@ -139,6 +160,10 @@ export class Form extends Interaction {
                 funcs.some((func) => func()),
             );
         }
+        log.pipeline("willStart: visibility conditions built", () => ({
+            conditionalFields: this.visibilityFunctionByFieldEl.size,
+            dependencies: this.visibilityFunctionByFieldName.size,
+        }));
     }
 
     start() {
@@ -149,6 +174,10 @@ export class Form extends Interaction {
         this.updateContent();
 
         if (session.geoip_phone_code) {
+            log.logic("start: prefilling empty tel inputs with geoip code", () => ({
+                code: session.geoip_phone_code,
+                telInputs: this.el.querySelectorAll(`input[type="tel"]`).length,
+            }));
             this.el.querySelectorAll(`input[type="tel"]`).forEach((telField) => {
                 if (!telField.value) {
                     telField.value = "+" + session.geoip_phone_code;
@@ -164,9 +193,18 @@ export class Form extends Interaction {
             filesZoneEl.classList.add("o_files_zone", "row", "gx-1");
             inputEl.parentNode.insertBefore(filesZoneEl, inputEl);
         });
+        log.lifecycle("start", () => ({
+            datepickers: this.disableDateTimePickers.length,
+            fileInputs: this.el.querySelectorAll("input[type=file]").length,
+        }));
     }
 
     destroy() {
+        log.lifecycle("destroy", () => ({
+            errors: this.el.querySelectorAll(".o_has_error").length,
+            initialValues: this.initialValues.size,
+            datepickers: this.disableDateTimePickers.length,
+        }));
         this.resetForm();
 
         this.el
@@ -249,11 +287,18 @@ export class Form extends Interaction {
             this.disableDateTimePickers.push(() => picker.dispose());
             inputEl.setAttribute("inputmode", "none");
         }
+        log.pipeline("prepareDateFields: datepickers enabled", () => ({
+            count: this.dateFieldEls.length,
+        }));
         this.datepickerInitialized = true;
     }
 
     prefillValues() {
         let dataForValues = wUtils.getParsedDataFor(this.el.id, document);
+        log.logic("prefillValues", () => ({
+            hasDataFor: !!dataForValues,
+            userPrefill: Object.keys(this.preFillValues),
+        }));
         if (dataForValues || Object.keys(this.preFillValues).length) {
             dataForValues = dataForValues || {};
             const fieldNames = [...this.el.querySelectorAll("[name]")]
@@ -273,6 +318,7 @@ export class Form extends Interaction {
                     fieldEl.value &&
                     fieldEl.value !== "info@yourcompany.example.com"
                 ) {
+                    log.logic("prefillValues: keeping custom email_to");
                     continue;
                 }
 
@@ -283,6 +329,10 @@ export class Form extends Interaction {
                     newValue = this.preFillValues[fieldEl.dataset.fillWith];
                 }
                 if (newValue) {
+                    log.logic("prefillValues: field prefilled", () => ({
+                        name,
+                        fromDataFor: !!dataForValues[name],
+                    }));
                     this.initialValues.set(fieldEl, fieldEl.getAttribute("value"));
                     fieldEl.value = newValue;
                 }
@@ -300,6 +350,9 @@ export class Form extends Interaction {
             ?.replaceChildren();
         this.removeErrorMessages();
         if (!this.checkErrorFields({})) {
+            log.logic("send: client-side validation failed", () => ({
+                invalidFields: this.el.querySelectorAll(".o_has_error").length,
+            }));
             this.updateStatus("error", _t("Please fill in the form correctly."));
             return false;
         }
@@ -331,6 +384,11 @@ export class Form extends Interaction {
             }
             outerIndex++;
         }
+        log.pipeline("send: collected form fields", () => ({
+            fields: formFields.length,
+            files: formFields.filter((input) => input.value instanceof File).length,
+            fileInputs: outerIndex,
+        }));
 
         const formValues = {};
         formFields.forEach((input) => {
@@ -368,12 +426,17 @@ export class Form extends Interaction {
         }
 
         if (this.recaptchaLoaded) {
+            const endToken = log.perf("send recaptcha getToken");
             const tokenObj = await this.waitFor(
                 this.recaptcha.getToken("website_form"),
             );
+            endToken(() => ({ token: !!tokenObj.token, error: !!tokenObj.error }));
             if (tokenObj.token) {
                 formValues["recaptcha_token_response"] = tokenObj.token;
             } else if (tokenObj.error) {
+                log.logic("send: recaptcha token error, aborting", () => ({
+                    error: tokenObj.error,
+                }));
                 this.updateStatus("error", tokenObj.error);
                 return false;
             }
@@ -387,14 +450,25 @@ export class Form extends Interaction {
         for (const [key, value] of Object.entries(formValues)) {
             formData.append(key, value);
         }
+        log.pipeline("send: posting form", () => ({
+            action: this.el.getAttribute("action"),
+            model: this.el.dataset.force_action || this.el.dataset.model_name,
+            values: Object.keys(formValues).length,
+        }));
 
+        const endPost = log.perf("send post");
         return post(
             this.el.getAttribute("action") +
                 (this.el.dataset.force_action || this.el.dataset.model_name),
             formData,
         )
             .then(async (resultData) => {
+                endPost(() => ({ id: resultData.id, error: !!resultData.error }));
                 if (!resultData.id) {
+                    log.logic("send: server rejected submission", () => ({
+                        error: resultData.error,
+                        errorFields: Object.keys(resultData.error_fields || {}),
+                    }));
                     this.updateStatus(
                         "error",
                         resultData.error ? resultData.error : false,
@@ -409,6 +483,11 @@ export class Form extends Interaction {
                         successPage = this.el.dataset.success_page;
                         successMode = successPage ? "redirect" : "nothing";
                     }
+                    log.logic("send: success", () => ({
+                        successMode,
+                        successPage,
+                        legacy: !this.el.dataset.successMode,
+                    }));
                     switch (successMode) {
                         case "redirect": {
                             let hashIndex = successPage.indexOf("#");
@@ -437,6 +516,12 @@ export class Form extends Interaction {
                                     successPage.substring(1),
                                 );
                                 if (successAnchorEl) {
+                                    log.logic("send: success anchor on page", () => ({
+                                        anchor: successPage,
+                                        modal: successAnchorEl.classList.contains(
+                                            "modal",
+                                        ),
+                                    }));
                                     if (successAnchorEl.classList.contains("modal")) {
                                         window.location.href = successPage;
                                     } else {
@@ -450,6 +535,9 @@ export class Form extends Interaction {
                                 }
                                 break;
                             }
+                            log.logic("send: redirecting to success page", () => ({
+                                successPage,
+                            }));
                             window.location.href = successPage;
                             return;
                         }
@@ -471,6 +559,11 @@ export class Form extends Interaction {
                 }
             })
             .catch((error) => {
+                endPost(() => ({ failed: true }));
+                log.logic("send: post failed", () => ({
+                    message: error.message,
+                    tooLarge: error.message === "Content too large",
+                }));
                 this.updateStatus(
                     "error",
                     error.message && error.message === "Content too large"
@@ -520,6 +613,9 @@ export class Form extends Interaction {
                 ) {
                     const date = parseDate(inputEl.value);
                     if (!date || !date.isValid) {
+                        log.logic("checkErrorFields: invalid date", () => ({
+                            name: inputEl.name,
+                        }));
                         return true;
                     }
                 } else if (
@@ -529,11 +625,21 @@ export class Form extends Interaction {
                 ) {
                     const date = parseDateTime(inputEl.value);
                     if (!date || !date.isValid) {
+                        log.logic("checkErrorFields: invalid datetime", () => ({
+                            name: inputEl.name,
+                        }));
                         return true;
                     }
                 } else if (inputEl.type === "file" && !this.isFileInputValid(inputEl)) {
+                    log.logic("checkErrorFields: invalid file input", () => ({
+                        name: inputEl.name,
+                    }));
                     return true;
                 } else if (this.requirementFunction(fieldEl) === false) {
+                    log.logic("checkErrorFields: requirement condition failed", () => ({
+                        name: inputEl.name,
+                        comparator: fieldEl.dataset.requirementComparator,
+                    }));
                     this.updateStatusInline(fieldEl.dataset.errorMessage, inputEl);
                     return true;
                 }
@@ -550,6 +656,11 @@ export class Form extends Interaction {
             }
             Popover.getInstance(fieldEl)?.dispose();
             if (invalidInputs.length || errorFields[fieldName]) {
+                log.logic("checkErrorFields: field marked invalid", () => ({
+                    fieldName,
+                    invalidInputs: invalidInputs.length,
+                    serverError: typeof errorFields[fieldName],
+                }));
                 fieldEl.classList.add("o_has_error");
                 for (const controlEl of controlEls) {
                     controlEl.classList.add("is-invalid");
@@ -566,6 +677,10 @@ export class Form extends Interaction {
                 formValid = false;
             }
         }
+        log.logic("checkErrorFields: result", () => ({
+            formValid,
+            serverErrorFields: Object.keys(errorFields).length,
+        }));
         return formValid;
     }
 
@@ -574,6 +689,11 @@ export class Form extends Interaction {
             "#s_website_form_result, #o_website_form_result",
         );
 
+        log.logic("updateStatus", () => ({
+            status,
+            hasMessage: !!message,
+            hasResultEl: !!resultEl,
+        }));
         if (status === "error" && !message) {
             message = _t("An error has occured, the form has not been sent.");
         }
@@ -631,6 +751,10 @@ export class Form extends Interaction {
     isFileInputValid(inputEl) {
         const maxFilesNumber = inputEl.dataset.maxFilesNumber;
         if (maxFilesNumber && inputEl.files.length > maxFilesNumber) {
+            log.logic("isFileInputValid: too many files", () => ({
+                files: inputEl.files.length,
+                maxFilesNumber,
+            }));
             const errorMessage = _t(
                 "You have uploaded too many files(Maximum %s files).",
                 maxFilesNumber,
@@ -643,6 +767,10 @@ export class Form extends Interaction {
         if (maxFileSize) {
             for (const file of Object.values(inputEl.files)) {
                 if (file.size / bytesInMegabyte > maxFileSize) {
+                    log.logic("isFileInputValid: file too large", () => ({
+                        size: file.size,
+                        maxFileSize,
+                    }));
                     const errorMessage = _t(
                         "Please fill in the form correctly. The file “%(fileName)s” is too large. (Maximum %(max)s MB)",
                         { fileName: file.name, max: maxFileSize },
@@ -857,6 +985,9 @@ export class Form extends Interaction {
 
     onFieldInput() {
         this.lastFormData = this.getFormDataIncludingDisabledFields(this.el);
+        log.logic("onFieldInput: form data refreshed", () => ({
+            conditionalFields: this.visibilityFunctionByFieldEl.size,
+        }));
     }
 
     /**
@@ -878,6 +1009,7 @@ export class Form extends Interaction {
         }
 
         if (!fileInputEl.hasAttribute("multiple") && uploadedFiles.length > 0) {
+            log.logic("changeFile: single-file input, replacing previous file");
             fileInputEl.fileList = new DataTransfer();
             const fileBlockEl = fieldEl.querySelector(".o_file_block");
             if (fileBlockEl) {
@@ -904,6 +1036,11 @@ export class Form extends Interaction {
             }
         }
         fileInputEl.files = fileInputEl.fileList.files;
+        log.pipeline("changeFile: file list updated", () => ({
+            name: fileInputEl.name,
+            uploaded: uploadedFiles.length,
+            total: fileInputEl.files.length,
+        }));
     }
 
     /**
@@ -931,6 +1068,10 @@ export class Form extends Interaction {
         }
         Object.assign(fileInputEl, { fileList: newFileList, files: newFileList.files });
         fileBlockEl.remove();
+        log.pipeline("clickFileDelete: file removed", () => ({
+            name: fileInputEl.name,
+            remaining: newFileList.files.length,
+        }));
 
         if (!newFileList.files.length) {
             fileInputEl.classList.remove("d-none");

@@ -1,6 +1,8 @@
 /** @odoo-module native */
 import { Component, useEffect, useRef, useState } from "@odoo/owl";
 import { CheckBox } from "@web/components/checkbox";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { sprintf } from "@web/core/utils/format/strings";
@@ -11,6 +13,8 @@ import { FormController, formView } from "@web/views/form";
 import { FormViewDialog } from "@web/views/view_dialogs";
 
 import { WebsiteDialog } from "./dialog.js";
+
+const log = makeLogger("website.dialog.page_properties");
 
 class PageDependenciesPopover extends Component {
     static template = "website.PageDependencies.Tooltip";
@@ -30,6 +34,7 @@ export class PageDependencies extends Component {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.orm = useService("orm");
 
         this.action = useRef("action");
@@ -55,14 +60,19 @@ export class PageDependencies extends Component {
     }
 
     async fetchDependencies() {
+        const endFetch = log.perf("PageDependencies search_url_dependencies", () => ({
+            resModel: this.props.resModel,
+        }));
         this.state.dependencies = await this.orm.call(
             "website",
             "search_url_dependencies",
             [this.props.resModel, await this.getResIds()],
         );
+        endFetch();
     }
 
     showDependencies() {
+        log.lifecycle("PageDependencies open popover");
         this.dependenciesPopover.open(this.action.el, {
             dependencies: this.state.dependencies,
         });
@@ -77,11 +87,16 @@ export class FormPageDependencies extends PageDependencies {
     };
 
     async getResIds() {
+        const endRead = log.perf("FormPageDependencies read target_model_id", () => ({
+            resModel: this.props.record.resModel,
+            resId: this.props.record.resId,
+        }));
         const records = await this.orm.read(
             this.props.record.resModel,
             [this.props.record.resId],
             ["target_model_id"],
         );
+        endRead(() => ({ records: records.length }));
         return records.map((record) => record.target_model_id[0]);
     }
 }
@@ -118,6 +133,7 @@ export class DeletePageDialog extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
 
         this.state = useState({
@@ -130,6 +146,10 @@ export class DeletePageDialog extends Component {
     }
 
     onClickDelete() {
+        log.logic("DeletePageDialog confirmed", () => ({
+            resModel: this.props.resModel,
+            resIds: this.props.resIds,
+        }));
         this.props.close();
         this.props.onDelete();
     }
@@ -145,6 +165,7 @@ export class DuplicatePageDialog extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.orm = useService("orm");
         this.website = useService("website");
         useAutofocus();
@@ -156,6 +177,11 @@ export class DuplicatePageDialog extends Component {
 
     async duplicate() {
         const duplicates = [];
+        log.logic("DuplicatePageDialog duplicate", () => ({
+            hasName: Boolean(this.state.name),
+            pages: this.props.pageIds.length,
+        }));
+        const endClone = log.perf("DuplicatePageDialog clone_page loop");
         if (this.state.name) {
             for (let count = 0; count < this.props.pageIds.length; count++) {
                 const name = this.state.name + (count ? ` ${count + 1}` : "");
@@ -167,6 +193,7 @@ export class DuplicatePageDialog extends Component {
                 );
             }
         }
+        endClone(() => ({ duplicates: duplicates.length }));
         this.props.onDuplicate(duplicates);
     }
 }
@@ -200,9 +227,15 @@ export class PagePropertiesDialog extends FormViewDialog {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.dialog = useService("dialog");
         this.orm = useService("orm");
         this.website = useService("website");
+        log.logic("PagePropertiesDialog form variant", () => ({
+            isPage: this.isPage,
+            targetModel: this.targetModel,
+            resId: this.resId,
+        }));
 
         this.viewProps = {
             ...this.viewProps,
@@ -250,9 +283,15 @@ export class PagePropertiesDialog extends FormViewDialog {
     }
 
     clonePage() {
+        log.logic("PagePropertiesDialog clonePage", () => ({
+            targetId: this.targetId,
+        }));
         this.dialog.add(DuplicatePageDialog, {
             pageIds: [this.targetId],
             onDuplicate: (duplicates) => {
+                log.pipeline("PagePropertiesDialog duplicated: go to copy", () => ({
+                    path: duplicates[0],
+                }));
                 this.props.close();
                 this.props.onClose();
                 this.website.goToWebsite({ path: duplicates[0], edition: true });
@@ -262,14 +301,22 @@ export class PagePropertiesDialog extends FormViewDialog {
 
     async deletePage() {
         const pageIds = [this.targetId];
+        const endRead = log.perf("PagePropertiesDialog read is_new_page_template", {
+            pageIds,
+        });
         const newPageTemplateFields = await this.orm.read("website.page", pageIds, [
             "is_new_page_template",
         ]);
+        endRead();
         this.dialog.add(DeletePageDialog, {
             resIds: pageIds,
             resModel: "website.page",
             onDelete: async () => {
+                const endUnlink = log.perf("PagePropertiesDialog unlink page", {
+                    pageIds,
+                });
                 await this.orm.unlink("website.page", pageIds);
+                endUnlink();
                 this.website.goToWebsite({ path: "/" });
                 this.props.close();
                 this.props.onClose();

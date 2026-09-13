@@ -4,8 +4,11 @@ import { BaseOptionComponent } from "@html_builder/core/utils";
 import { after } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { WEBSITE_BACKGROUND_OPTIONS } from "@website/builder/option_sequence";
+
+const log = makeLogger("website.builder.plugin.announcement_scroll_option_plugin");
 
 class SetItemTextAction extends BuilderAction {
     static id = "setItemTextAction";
@@ -15,6 +18,7 @@ class SetItemTextAction extends BuilderAction {
         return editingElement.textContent;
     }
     apply({ editingElement, value, params }) {
+        log.pipeline("SetItemTextAction apply", () => ({ length: value?.length }));
         editingElement.textContent = value;
     }
 }

@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { onMounted, onWillDestroy, useEffect, useRef, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.google_maps_option");
 
 /** @import { Coordinates, Place } from './google_maps_option_plugin.js' */
 
@@ -11,6 +15,7 @@ export class GoogleMapsOption extends BaseOptionComponent {
 
     async setup() {
         super.setup();
+        useLifecycleLog(log);
 
         this.getMapsAPI = this.dependencies.googleMapsOption.getMapsAPI;
         /** @type {function(Element, Coordinates):Promise<Place | undefined>} */
@@ -34,6 +39,9 @@ export class GoogleMapsOption extends BaseOptionComponent {
             this.initializeAutocomplete(this.inputRef.el);
         });
         onWillDestroy(() => {
+            log.lifecycle("GoogleMapsOption detach autocomplete", () => ({
+                hasListener: !!this.autocompleteListener,
+            }));
             if (this.autocompleteListener) {
                 this.getMapsAPI().event.removeListener(this.autocompleteListener);
             }
@@ -57,10 +65,14 @@ export class GoogleMapsOption extends BaseOptionComponent {
                 "place_changed",
                 this.onPlaceChanged.bind(this),
             );
+            log.lifecycle("GoogleMapsOption autocomplete attached");
             if (!this.state.formattedAddress) {
                 const editingElement = this.env.getEditingElement();
                 /** @type {Coordinates} */
                 const coordinates = editingElement.dataset.mapGps;
+                log.logic("GoogleMapsOption resolve address from coordinates", () => ({
+                    coordinates,
+                }));
                 this.getPlace(editingElement, coordinates).then((place) => {
                     if (place?.formatted_address) {
                         this.state.formattedAddress = place.formatted_address;
@@ -73,6 +85,10 @@ export class GoogleMapsOption extends BaseOptionComponent {
     onPlaceChanged() {
         /** @type {Place | undefined} */
         const place = this.googleMapsAutocomplete.getPlace();
+        log.logic("GoogleMapsOption place changed", () => ({
+            hasPlace: !!place,
+            address: place?.formatted_address,
+        }));
         this.commitPlace(this.env.getEditingElement(), place);
         this.state.formattedAddress = place?.formatted_address || "";
     }

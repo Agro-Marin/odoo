@@ -1,14 +1,22 @@
 /** @odoo-module native */
 import { Component, reactive, useEffect, useState, xml } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { POSITION_BUS } from "@web/core/position/position_hook";
+
+const log = makeLogger("website.builder.option.stacking_component");
 
 export function useStackingComponentState() {
     const stack = reactive([]);
     let counter = 0;
     const push = (component, props, title, withPrevious) => {
+        log.pipeline("push", () => ({ depth: stack.length, title, withPrevious }));
         stack.push({ id: counter++, component, props, title, withPrevious });
     };
-    const pop = () => stack.pop();
+    const pop = () => {
+        log.pipeline("pop", () => ({ depth: stack.length }));
+        return stack.pop();
+    };
 
     return { push, pop, stack };
 }
@@ -32,9 +40,13 @@ export class StackingComponent extends Component {
         close: { type: Function, optional: true },
     };
     setup() {
+        useLifecycleLog(log);
         this.stack = useState(this.props.stackState.stack);
         useEffect(
             () => {
+                log.pipeline("StackingComponent position update", () => ({
+                    depth: this.stack.length,
+                }));
                 this.env[POSITION_BUS]?.trigger("update");
             },
             () => [this.stack.length],

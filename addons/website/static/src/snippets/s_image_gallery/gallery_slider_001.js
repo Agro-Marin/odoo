@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_image_gallery.slider_001");
 
 export class GallerySlider001 extends Interaction {
     static selector = ".o_slideshow[data-vcss='002']";
@@ -23,6 +26,12 @@ export class GallerySlider001 extends Interaction {
             : this.el.querySelector(".carousel");
         this.indicatorsWrapperEl =
             this.carouselEl?.querySelector(".carousel-indicators");
+        log.lifecycle("setup", () => ({
+            hasCarousel: !!this.carouselEl,
+            hasIndicators: !!this.indicatorsWrapperEl,
+            indicators:
+                this.indicatorsWrapperEl?.querySelectorAll("[data-bs-slide-to]").length,
+        }));
 
         if (this.indicatorsWrapperEl) {
             this.indicatorEls =
@@ -52,6 +61,7 @@ export class GallerySlider001 extends Interaction {
 
     onSlideCarousel(ev) {
         if (this.indicatorEls.length) {
+            log.logic("onSlideCarousel: scrolling indicators", () => ({ to: ev.to }));
             const nextActiveIndicatorEl = this.indicatorEls.item(ev.to);
             this.indicatorsWrapperEl.scrollTo({
                 left:

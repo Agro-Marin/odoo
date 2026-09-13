@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.animate_overflow");
 
 export class AnimateOverflow extends Interaction {
     static selector = "#wrapwrap";
@@ -27,10 +30,15 @@ export class AnimateOverflow extends Interaction {
 
     setup() {
         this.scrollingElement = getScrollingElement(this.el.ownerDocument);
+        const endScan = log.perf("AnimateOverflow setup: scan animated transforms");
         const animatedElements = this.el.querySelectorAll(".o_animate");
         this.forceOverflowXYHidden = [...animatedElements].some(
             (el) => window.getComputedStyle(el).transform !== "none",
         );
+        endScan(() => ({
+            animated: animatedElements.length,
+            forceOverflowXYHidden: this.forceOverflowXYHidden,
+        }));
     }
 
     get hasAnimationInProgress() {

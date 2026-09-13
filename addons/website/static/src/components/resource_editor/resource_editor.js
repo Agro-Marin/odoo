@@ -10,6 +10,8 @@ import {
 import { CodeEditor } from "@web/components/code_editor";
 import { CheckboxItem, Dropdown, DropdownItem } from "@web/components/dropdown";
 import { SelectMenu } from "@web/components/select_menu";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { user } from "@web/core/user";
@@ -26,6 +28,8 @@ const BUNDLES_RESTRICTION = [
     "web.assets_frontend_minimal",
     "web.assets_frontend_lazy",
 ];
+
+const log = makeLogger("website.component.resource_editor");
 
 export class ResourceEditor extends Component {
     static components = {
@@ -45,6 +49,7 @@ export class ResourceEditor extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.website = useService("website");
         this.orm = useService("orm");
         this.dialog = useService("dialog");
@@ -99,9 +104,13 @@ export class ResourceEditor extends Component {
         this.errors = reactive([], () => {
             clearInterval(showErrorInterval);
             if (this.errors.length) {
+                log.lifecycle("error highlight interval started", () => ({
+                    errors: this.errors.length,
+                }));
                 this.showErrorLine();
                 showErrorInterval = setInterval(() => this.showErrorLine(), 500);
             } else {
+                log.lifecycle("errors cleared: interval stopped");
                 this.clearErrorLine();
             }
         });
@@ -175,6 +184,11 @@ export class ResourceEditor extends Component {
     }
 
     async loadResources() {
+        const endLoad = log.perf("get_assets_editor_resources", () => ({
+            key: this.viewKey,
+            xmlFilter: this.state.xmlFilter,
+            scssFilter: this.state.scssFilter,
+        }));
         const resources = await this.keepLast.add(
             rpc("/website/get_assets_editor_resources", {
                 key: this.viewKey,
@@ -183,22 +197,33 @@ export class ResourceEditor extends Component {
                 only_user_custom_files: this.state.scssFilter === "custom",
             }),
         );
+        endLoad(() => ({
+            views: resources.views?.length,
+            scssBundles: resources.scss?.length,
+            jsBundles: resources.js?.length,
+        }));
         this.state.resources = { xml: {}, js: {}, scss: {} };
         this.processResources(resources.views || [], "xml");
         this.processResources(resources.scss || [], "scss");
         this.processResources(resources.js || [], "js");
         const type = this.state.type;
         if (this.state.currentResource) {
+            log.logic("loadResources keep current resource", () => ({
+                type,
+                id: this.state.currentResource.id,
+            }));
             this.state.currentResource =
                 this.state.resources[type][this.state.currentResource.id];
         }
         if (!this.state.currentResource) {
+            log.logic("loadResources no current resource: default file", { type });
             this.setDefaultFile();
         }
         this.errors.length = 0;
     }
 
     processResources(resources, type) {
+        log.pipeline("processResources", () => ({ type, count: resources.length }));
         if (type === "xml") {
             const indexedById = {};
             resources
@@ -277,9 +302,14 @@ export class ResourceEditor extends Component {
      */
     async resetResource() {
         if (this.state.type === "xml") {
+            log.logic("resetResource refused: xml views");
             throw new Error(_t("Reseting views is not supported yet"));
         }
         const resource = this.state.currentResource;
+        const endReset = log.perf("reset_asset", () => ({
+            url: resource.url,
+            bundle: resource.bundle,
+        }));
         await this.orm.call(
             "website.assets",
             "reset_asset",
@@ -288,7 +318,9 @@ export class ResourceEditor extends Component {
                 context: this.context,
             },
         );
+        endReset();
         await this.loadResources();
+        log.pipeline("resetResource reload page");
         this.website.contentWindow.location.reload();
     }
 
@@ -302,29 +334,46 @@ export class ResourceEditor extends Component {
                 "id",
             ).reverse(),
         };
+        log.pipeline("saveResources dirty", () => ({
+            js: toSave.js.length,
+            scss: toSave.scss.length,
+            xml: toSave.xml.length,
+        }));
 
+        const endValidate = log.perf("saveResources validate");
         for (const [type, resources] of Object.entries(toSave)) {
             for (let i = 0; i < resources.length; i++) {
                 const arch = resources[i].arch;
                 const { isValid, error } =
                     type === "xml" ? checkXML(arch) : checkSCSS(arch);
                 if (!isValid) {
+                    log.logic("saveResources invalid resource", () => ({
+                        type,
+                        id: resources[i].id,
+                        line: error.line,
+                    }));
                     this.errors.push({ error, resource: resources[i] });
                 }
             }
         }
+        endValidate();
         if (this.errors.length) {
+            log.logic("saveResources aborted: validation errors", () => ({
+                errors: this.errors.length,
+            }));
             if (
                 !this.errors
                     .map(({ resource }) => resource.id)
                     .includes(this.state.currentResource?.id)
             ) {
+                log.logic("saveResources switch to first erroneous resource");
                 this.state.currentResource = this.errors[0].resource;
                 this.state.type = this.errors[0].resource.type;
             }
             return;
         }
 
+        const endSave = log.perf("saveResources save loop");
         for (const [type, resources] of Object.entries(toSave)) {
             for (const resource of resources) {
                 if (type === "xml") {
@@ -334,7 +383,9 @@ export class ResourceEditor extends Component {
                 }
             }
         }
+        endSave();
         await this.loadResources();
+        log.pipeline("saveResources reload page");
         this.website.contentWindow.location.reload();
     }
 
@@ -351,9 +402,11 @@ export class ResourceEditor extends Component {
             : this.state.resources.scss[url].bundle;
         const fileType = isJSFile ? "js" : "scss";
         const params = [url, bundle, arch, fileType];
+        const endSaveAsset = log.perf("save_asset", { url, bundle, fileType });
         await this.orm.call("website.assets", "save_asset", params, {
             context: this.context,
         });
+        endSaveAsset();
         delete resource.dirty;
     }
 
@@ -363,20 +416,29 @@ export class ResourceEditor extends Component {
      */
     async saveXML(resource) {
         const { id, arch } = resource;
+        const endSaveXml = log.perf("save_xml", { id });
         await rpc("/website/save_xml", {
             view_id: id,
             arch: arch,
         });
+        endSaveXml();
         delete resource.dirty;
     }
 
     setDefaultFile() {
+        log.logic("setDefaultFile", () => ({
+            type: this.state.type,
+            viewKey: this.viewKey,
+        }));
         if (this.state.type === "xml") {
             const views = Object.values(this.state.resources.xml);
             let view = views.find((view) =>
                 [view.id, view.xml_id].includes(this.viewKey),
             );
             if (!view) {
+                log.logic("setDefaultFile xml: fallback lookup by key", () => ({
+                    views: views.length,
+                }));
                 view = views.find((view) => view.key === this.viewKey);
             }
             this.state.currentResource = view || this.state.sortedXML[0] || false;
@@ -435,6 +497,7 @@ export class ResourceEditor extends Component {
      */
     onFileTypeChange(type) {
         if (type !== this.state.type) {
+            log.logic("onFileTypeChange", { type });
             this.state.type = type;
             this.setDefaultFile();
         }
@@ -445,6 +508,7 @@ export class ResourceEditor extends Component {
      * @param {string} filter
      */
     onFilterChange(type, filter) {
+        log.logic("onFilterChange reload resources", { type, filter });
         if (type === "scss") {
             this.state.scssFilter = filter;
         } else if (type === "xml") {
@@ -456,6 +520,7 @@ export class ResourceEditor extends Component {
     onFormat() {
         if (this.state.type === "xml") {
             const { isValid, error } = checkXML(this.state.currentResource.arch);
+            log.logic("onFormat xml", () => ({ isValid, line: error?.line }));
             if (isValid) {
                 this.state.currentResource.arch = formatXML(
                     this.state.currentResource.arch,
@@ -467,6 +532,7 @@ export class ResourceEditor extends Component {
     }
 
     onReset() {
+        log.lifecycle("onReset confirmation dialog");
         this.dialog.add(ConfirmationDialog, {
             title: _t("Careful"),
             body: _t(
@@ -479,8 +545,10 @@ export class ResourceEditor extends Component {
 
     async onSave() {
         this.state.saving = true;
+        const endOnSave = log.perf("onSave");
         try {
             await this.saveResources();
+            endOnSave();
         } finally {
             this.state.saving = false;
         }

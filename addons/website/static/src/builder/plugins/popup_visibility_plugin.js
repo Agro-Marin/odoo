@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { getBootstrapComponent } from "@html_builder/core/bootstrap_realm";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { patch } from "@web/core/utils/patch";
+
+const log = makeLogger("website.builder.plugin.popup_visibility_plugin");
 
 /**
  * @typedef { Object } PopupVisibilityShared
@@ -29,11 +32,15 @@ export class PopupVisibilityPlugin extends Plugin {
             if (ev.target.matches(".s_popup .js_close_popup:not(a, .btn)")) {
                 ev.stopPropagation();
                 const popupEl = ev.target.closest(".s_popup");
+                log.logic("close popup button clicked: hiding popup", () => ({
+                    id: popupEl?.id,
+                }));
                 this.dependencies.visibility.hideElement(popupEl);
             }
         });
         const history = this.dependencies.history;
         const Modal = this.getModal();
+        log.lifecycle("setup", () => ({ patchModal: !!Modal }));
         this.unpatchModal = Modal
             ? patch(Modal.prototype, {
                   _hideModal() {
@@ -57,6 +64,7 @@ export class PopupVisibilityPlugin extends Plugin {
     }
 
     destroy() {
+        log.lifecycle("destroy");
         super.destroy();
         this.unpatchModal();
     }
@@ -71,22 +79,26 @@ export class PopupVisibilityPlugin extends Plugin {
 
     onTargetShow(targetEl) {
         if (!this.editable.contains(targetEl)) {
+            log.logic("onTargetShow skip: target outside editable");
             return;
         }
         const modalEl = this.getModalEl(targetEl);
         const Modal = this.getModal();
         if (modalEl && Modal) {
+            log.pipeline("onTargetShow show popup modal", () => ({ id: targetEl.id }));
             Modal.getOrCreateInstance(modalEl).show();
         }
     }
 
     onTargetHide(targetEl, isCleaning) {
         if (isCleaning) {
+            log.logic("onTargetHide skip: cleaning");
             return;
         }
         const modalEl = this.getModalEl(targetEl);
         const Modal = this.getModal();
         if (modalEl && Modal) {
+            log.pipeline("onTargetHide hide popup modal", () => ({ id: targetEl.id }));
             Modal.getOrCreateInstance(modalEl).hide();
         }
     }
@@ -94,8 +106,12 @@ export class PopupVisibilityPlugin extends Plugin {
     cleanForSave({ root: rootEl }) {
         const Modal = this.getModal();
         if (!Modal) {
+            log.logic("cleanForSave skip: no bootstrap Modal");
             return;
         }
+        log.pipeline("cleanForSave hide open popups", () => ({
+            count: rootEl.querySelectorAll(".s_popup .modal.show").length,
+        }));
         for (const modalEl of rootEl.querySelectorAll(".s_popup .modal.show")) {
             modalEl.parentElement.dataset.invisible = "1";
             modalEl.classList.remove("show");
@@ -116,6 +132,9 @@ export class PopupVisibilityPlugin extends Plugin {
             return;
         }
 
+        log.pipeline("hidePopupsWithoutTarget", () => ({
+            openPopups: openPopupEls.length,
+        }));
         for (const popupEl of openPopupEls) {
             if (!popupEl.contains(targetEl)) {
                 this.dependencies.visibility.toggleTargetVisibility(popupEl, false);

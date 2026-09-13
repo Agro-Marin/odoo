@@ -179,4 +179,14 @@ describe("logger", () => {
         disableLogging({ persist: false });
         expect(log.enabled).toBe(false);
     });
+
+    test("the state lives on the window so every bundle copy shares it", () => {
+        cleanLogging();
+        const shared = /** @type {any} */ (globalThis).__odooLogState;
+        const log = makeLogger("test.shared");
+        expect(shared.loggers.get("test.shared")).toBe(log);
+        enableLogging("test.shared", { persist: false });
+        expect(shared.spec).toBe("test.shared");
+        expect(log.enabled).toBe(true);
+    });
 });

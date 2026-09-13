@@ -1,8 +1,11 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { compensateScrollbar } from "@web/core/utils/dom/scrolling";
 import { Collapse, Dropdown, Offcanvas } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
 import { SIZES, utils as uiUtils } from "@web/ui/viewport";
+
+const log = makeLogger("website.interaction.base_header");
 
 export class BaseHeader extends Interaction {
     dynamicContent = {
@@ -74,11 +77,25 @@ export class BaseHeader extends Interaction {
 
         this.hasScrolled = false;
         this.closeDropdowns = false;
+        log.lifecycle("BaseHeader setup", () => ({
+            interaction: this.constructor.name,
+            isOverlay: this.isOverlay,
+            hasMain: !!this.mainEl,
+            hasHideEl: !!this.hideEl,
+            navBreakpoint,
+        }));
     }
 
     start() {
         this.services.website_menus.triggerCallbacks();
         if (this.scrollingElement.scrollTop > 0) {
+            log.logic(
+                "BaseHeader start: page already scrolled, adjust position",
+                () => ({
+                    interaction: this.constructor.name,
+                    scrollTop: this.scrollingElement.scrollTop,
+                }),
+            );
             this.adjustPosition();
         }
     }
@@ -89,6 +106,9 @@ export class BaseHeader extends Interaction {
 
     disableScroll() {
         if (this.isSmall()) {
+            log.logic("BaseHeader disableScroll: small viewport, lock body", () => ({
+                breakpointSize: this.breakpointSize,
+            }));
             this.bodyNoScroll = true;
         }
     }
@@ -100,6 +120,13 @@ export class BaseHeader extends Interaction {
     onResize() {
         this.adjustScrollbar();
         if (document.body.classList.contains("overflow-hidden") && !this.isSmall()) {
+            log.logic(
+                "BaseHeader onResize: left small viewport, hide open menus",
+                () => ({
+                    offcanvas: this.el.querySelectorAll(".offcanvas.show").length,
+                    collapse: this.el.querySelectorAll(".navbar-collapse.show").length,
+                }),
+            );
             const offCanvasEls = this.el.querySelectorAll(".offcanvas.show");
             for (const offCanvasEl of offCanvasEls) {
                 Offcanvas.getOrCreateInstance(offCanvasEl).hide();
@@ -117,6 +144,10 @@ export class BaseHeader extends Interaction {
         const scroll = this.scrollingElement.scrollTop;
 
         if (!this.hasScrolled) {
+            log.logic("BaseHeader onScroll: first scroll", () => ({
+                interaction: this.constructor.name,
+                scroll,
+            }));
             this.hasScrolled = true;
             if (scroll > 0) {
                 this.el.classList.add("o_header_no_transition");

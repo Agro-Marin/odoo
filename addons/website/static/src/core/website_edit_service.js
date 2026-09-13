@@ -7,12 +7,17 @@ import * as bootstrap from "@web/libs/bootstrap";
 import { Colibri } from "@web/public/colibri";
 import { Interaction } from "@web/public/interaction";
 
+const log = makeLogger("website.edit");
+
 const EDIT_HOOKS_KEY = "__odooWebsiteEditHooks";
 
 const EDIT_BOOTSTRAP_KEY = "__odooWebsiteEditBootstrap";
 window[EDIT_BOOTSTRAP_KEY] = bootstrap;
 
 export function buildEditableInteractions(builders) {
+    const endBuild = log.perf("buildEditableInteractions", () => ({
+        builders: builders.length,
+    }));
     const result = [];
 
     const mixinPerInteraction = new Map();
@@ -33,6 +38,10 @@ export function buildEditableInteractions(builders) {
             if (mixin) {
                 mixins.push(mixin);
             } else {
+                log.logic("buildEditableInteractions: missing mixin", () => ({
+                    interaction: I.name,
+                    for: makeEditable.Interaction.name,
+                }));
                 console.warn(`No mixin defined for: ${I.name}`);
             }
             I = I.__proto__;
@@ -47,10 +56,9 @@ export function buildEditableInteractions(builders) {
         }
         result.push(EI);
     }
+    endBuild(() => ({ built: result.length }));
     return result;
 }
-
-const log = makeLogger("website.edit");
 
 export const websiteEditService = {
     dependencies: ["public.interactions"],
@@ -60,6 +68,7 @@ export const websiteEditService = {
         const patches = [];
         const historyCallbacks = {};
         const shared = {};
+        log.lifecycle("start");
 
         const update = (target, mode) => {
             log.pipeline("update", () => ({
@@ -67,10 +76,15 @@ export const websiteEditService = {
                 target: target?.tagName,
                 refreshing: publicInteractions.isRefreshing,
             }));
+            const endUpdate = log.perf("update", () => ({
+                mode,
+                target: target?.tagName,
+            }));
             stopDisconnectedInteractions();
             publicInteractions.stopInteractions(target);
             if (mode === "edit") {
                 if (!editableInteractions) {
+                    log.logic("update: building editable interactions (first edit)");
                     const builders = registry
                         .category("public.interactions.edit")
                         .getAll();
@@ -80,6 +94,7 @@ export const websiteEditService = {
                 publicInteractions.activate(editableInteractions);
             } else if (mode === "preview") {
                 if (!previewInteractions) {
+                    log.logic("update: building preview interactions (first preview)");
                     const builders = registry
                         .category("public.interactions.preview")
                         .getAll();
@@ -89,9 +104,11 @@ export const websiteEditService = {
             } else {
                 publicInteractions.startInteractions(target);
             }
+            endUpdate();
         };
 
         const refresh = (target) => {
+            log.pipeline("refresh", () => ({ target: target?.tagName }));
             publicInteractions.isRefreshing = true;
             try {
                 update(target, "edit");
@@ -106,6 +123,7 @@ export const websiteEditService = {
         };
 
         const stopInteraction = (name) => {
+            log.lifecycle("stopInteraction", () => ({ name }));
             publicInteractions.stopInteractionsByName(name);
         };
 
@@ -118,6 +136,9 @@ export const websiteEditService = {
 
         const installPatches = () => {
             if (patches.length) {
+                log.logic("installPatches: already installed", () => ({
+                    patches: patches.length,
+                }));
                 return;
             }
 
@@ -181,12 +202,26 @@ export const websiteEditService = {
                             isMatch &&= !this.el.querySelector(I.selectorNotHas);
                         }
                         if (!isMatch) {
+                            log.logic(
+                                "Interaction shouldStop: selector no longer matches",
+                                () => ({
+                                    interaction: I.name,
+                                }),
+                            );
                             return true;
                         }
                         const snapshot = this.getConfigurationSnapshot();
                         if (snapshot === this.configurationSnapshot) {
                             return false;
                         }
+                        log.logic(
+                            "Interaction shouldStop: configuration changed",
+                            () => ({
+                                interaction: I.name,
+                                from: this.configurationSnapshot,
+                                to: snapshot,
+                            }),
+                        );
                         this.configurationSnapshot = snapshot;
                         return true;
                     },
@@ -213,8 +248,10 @@ export const websiteEditService = {
                     },
                 }),
             );
+            log.lifecycle("patches installed", () => ({ patches: patches.length }));
         };
         const uninstallPatches = () => {
+            log.lifecycle("patches uninstalled", () => ({ patches: patches.length }));
             for (const removePatch of patches) {
                 removePatch();
             }
@@ -260,6 +297,7 @@ export const websiteEditService = {
         };
 
         const handleEditPage = (ev) => {
+            log.lifecycle("edit_page received");
             stop(ev.detail.iframeDocument);
         };
 
@@ -272,6 +310,9 @@ export const websiteEditService = {
                 }),
             );
             Object.assign(shared, ev.shared);
+            log.lifecycle("edit interaction plugin loaded", () => ({
+                sharedPlugins: Object.keys(shared).length,
+            }));
             historyCallbacks.ignoreDOMMutations = shared.history.ignoreDOMMutations;
             window[EDIT_HOOKS_KEY] = {
                 ...window[EDIT_HOOKS_KEY],
@@ -287,8 +328,10 @@ export const websiteEditService = {
         window.parent.document.dispatchEvent(
             new CustomEvent("website_edit_service_ready"),
         );
+        log.lifecycle("parent listeners attached, service ready dispatched");
 
         window.addEventListener("beforeunload", () => {
+            log.lifecycle("beforeunload: parent listeners removed");
             window.parent.document.removeEventListener("edit_page", handleEditPage);
             window.parent.document.removeEventListener(
                 "edit_interaction_plugin_loaded",

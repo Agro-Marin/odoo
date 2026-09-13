@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { convertNumericToUnit, getHtmlStyle } from "@html_editor/utils/formatting";
 import { getActiveHotkey } from "@web/core/browser/hotkeys";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_floating_blocks");
 
 export class FloatingBlocks extends Interaction {
     static selector = ".s_floating_blocks";
@@ -40,6 +43,10 @@ export class FloatingBlocks extends Interaction {
     }
 
     start() {
+        log.lifecycle("start", () => ({
+            blocks: this.boxesEls.length,
+            animated: this.boxesEls.length >= 2,
+        }));
         this.adaptToHeaderChange();
         this.registerCleanup(
             this.services.website_menus.registerCallback(
@@ -57,6 +64,11 @@ export class FloatingBlocks extends Interaction {
             );
 
             this.boxesScaleStep = this.calculateScaleFactors();
+            log.pipeline("start: scale factors computed", () => ({
+                boxesToAnimate: this.boxesToAnimate.length,
+                minimalScale: this.minimalScale,
+                steps: this.boxesScaleStep.length,
+            }));
 
             this.onResize();
             this.onScroll();
@@ -142,6 +154,11 @@ export class FloatingBlocks extends Interaction {
         );
         this.snippetOffset = this.el.getBoundingClientRect().y + window.scrollY;
         this.snippetScaleFactor = 1 / (this.snippetHeight * 12);
+        log.pipeline("onResize: geometry recomputed", () => ({
+            viewportHeight: this.viewportHeight,
+            snippetHeight: this.snippetHeight,
+            snippetOffset: this.snippetOffset,
+        }));
 
         this.updateZoom();
     }
@@ -173,6 +190,13 @@ export class FloatingBlocks extends Interaction {
             return;
         }
         const gap = convertNumericToUnit(3, "rem", "px", getHtmlStyle(document));
+        log.logic(
+            "onShiftTabFocusout: focus left block backwards, scrolling up",
+            () => ({
+                snippetHeight: this.snippetHeight,
+                gap,
+            }),
+        );
         scrollTo(0, window.scrollY - (this.snippetHeight + gap));
     }
 }

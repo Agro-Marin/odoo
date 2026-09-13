@@ -1,6 +1,10 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.component.autocomplete_with_pages");
 
 export class AutoCompleteWithPages extends AutoComplete {
     static props = {
@@ -11,8 +15,12 @@ export class AutoCompleteWithPages extends AutoComplete {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         useEffect(
             (input, inputRef) => {
+                log.lifecycle("target input listeners attached", () => ({
+                    synced: Boolean(inputRef),
+                }));
                 if (inputRef) {
                     inputRef.value = input.value;
                 }
@@ -29,6 +37,7 @@ export class AutoCompleteWithPages extends AutoComplete {
                 input.addEventListener("keydown", targetKeydown);
                 input.addEventListener("focus", targetFocus);
                 return () => {
+                    log.lifecycle("target input listeners removed");
                     input.removeEventListener("blur", targetBlur);
                     input.removeEventListener("click", targetClick);
                     input.removeEventListener("change", targetChange);

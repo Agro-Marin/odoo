@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.parallax");
 
 export class Parallax extends Interaction {
     static selector = ".parallax";
@@ -38,6 +41,11 @@ export class Parallax extends Interaction {
 
     start() {
         this.updateBackgroundHeight();
+        log.lifecycle("Parallax start", () => ({
+            speed: this.speed,
+            parallaxType: this.el.dataset.parallaxType,
+            active: this.speed !== 0 && this.speed !== 1,
+        }));
         this.updateContent();
     }
 

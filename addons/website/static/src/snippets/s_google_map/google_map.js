@@ -1,8 +1,11 @@
 /** @odoo-module native */
 /* global google */
 
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_google_map");
 
 export class GoogleMap extends Interaction {
     static selector = ".s_google_map";
@@ -48,7 +51,13 @@ export class GoogleMap extends Interaction {
         if (typeof google !== "object" || typeof google.maps !== "object") {
             const refetch = window.top.refetchGoogleMaps;
             window.top.refetchGoogleMaps = false;
+            log.logic("willStart: google maps not loaded, loading API", () => ({
+                canSpecifyKey: this.canSpecifyKey,
+                refetch,
+            }));
+            const endLoadApi = log.perf("willStart loadGMapAPI");
             await this.services.website_map.loadGMapAPI(this.canSpecifyKey, refetch);
+            endLoadApi();
             return;
         }
         this.canStart = true;
@@ -56,6 +65,7 @@ export class GoogleMap extends Interaction {
 
     start() {
         if (!this.canStart) {
+            log.logic("start: cannot start, map API was not ready at willStart");
             return;
         }
         const std = [];
@@ -107,6 +117,12 @@ export class GoogleMap extends Interaction {
             map.setMapTypeId("map_style");
         }
         this.map = map;
+        log.lifecycle("start: map created", () => ({
+            mapType: this.el.dataset.mapType,
+            zoom: this.el.dataset.mapZoom,
+            mapColor: mapColorAttr,
+            pinStyle: this.el.dataset.pinStyle,
+        }));
     }
 }
 

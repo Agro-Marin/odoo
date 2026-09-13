@@ -1,9 +1,12 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { rpc } from "@web/core/network";
 import { registry } from "@web/core/registry";
 
 import { SwitchableViews } from "./switchable_views.js";
+
+const log = makeLogger("website.builder.plugin.switchable_views");
 
 /**
  * @typedef { Object } SwitchableViewsShared
@@ -26,11 +29,17 @@ export class SwitchableViewsPlugin extends Plugin {
     getSwitchableRelatedViews() {
         if (!this.prom) {
             const viewKey = this.document.querySelector("html").dataset.viewXmlid;
+            log.logic("getSwitchableRelatedViews cache miss", () => ({
+                viewKey,
+                isDesigner: this.services.website.isDesigner,
+            }));
             if (this.services.website.isDesigner && viewKey) {
+                const endFetch = log.perf("getSwitchableRelatedViews rpc", { viewKey });
                 this.prom = rpc("/website/get_switchable_related_views", {
                     key: viewKey,
                 });
                 this.prom.then((views) => {
+                    endFetch(() => ({ count: views.length }));
                     for (const view of views) {
                         const promise = Promise.resolve(view.active);
                         this.dependencies.customizeWebsite.populateCache(

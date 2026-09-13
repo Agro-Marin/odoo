@@ -4,7 +4,11 @@ import { BaseOptionComponent, useDomState } from "@html_builder/core/utils";
 import { SNIPPET_SPECIFIC } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.gallery_element_option");
 
 /**
  * @typedef {(( activeItemEl: HTMLElement, optionName: string ) => HTMLElement[])[]} get_gallery_items_handlers
@@ -17,6 +21,7 @@ export class GalleryElementOption extends BaseOptionComponent {
         ".s_image_gallery img, .s_carousel .carousel-item, .s_quotes_carousel .carousel-item, .s_carousel_intro .carousel-item, .s_carousel_cards .carousel-item";
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.state = useDomState((editingElement) => {
             const isImageWall = editingElement.closest(
                 '[data-snippet="s_images_wall"]',
@@ -67,9 +72,21 @@ export class SetGalleryElementPositionAction extends BuilderAction {
         }
 
         const oldPosition = itemEls.indexOf(activeItemEl);
+        log.pipeline("SetGalleryElementPositionAction apply", () => ({
+            optionName,
+            position,
+            oldPosition,
+            items: itemEls.length,
+        }));
         if (oldPosition === 0 && position === "prev") {
+            log.logic("SetGalleryElementPositionAction wrap to last", () => ({
+                oldPosition,
+            }));
             position = "last";
         } else if (oldPosition === itemEls.length - 1 && position === "next") {
+            log.logic("SetGalleryElementPositionAction wrap to first", () => ({
+                oldPosition,
+            }));
             position = "first";
         }
         itemEls.splice(oldPosition, 1);

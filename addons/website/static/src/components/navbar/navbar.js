@@ -1,5 +1,6 @@
 /** @odoo-module native */
 import { useEffect } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { useBus, useService } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
@@ -7,6 +8,8 @@ import { NavBar } from "@web/webclient/navbar/navbar";
 import { UserMenu } from "@web/webclient/user_menu/user_menu";
 
 const websiteSystrayRegistry = registry.category("website_systray");
+
+const log = makeLogger("website.component.navbar");
 websiteSystrayRegistry.add("UserMenu", { Component: UserMenu }, { sequence: 14 });
 
 patch(NavBar.prototype, {
@@ -18,6 +21,7 @@ patch(NavBar.prototype, {
         useBus(websiteSystrayRegistry, "EDIT-WEBSITE", () => this.render(true));
 
         if (this.env.debug && !websiteSystrayRegistry.contains("web.debug_mode_menu")) {
+            log.logic("NavBar register debug menu in website systray");
             websiteSystrayRegistry.add(
                 "web.debug_mode_menu",
                 registry.category("systray").get("web.debug_mode_menu"),
@@ -26,12 +30,14 @@ patch(NavBar.prototype, {
         }
         let adaptCounter = 0;
         const renderAndAdapt = () => {
+            log.pipeline("NavBar CONTENT-UPDATED render+adapt", { adaptCounter });
             this.render(true);
             adaptCounter++;
         };
         useEffect(
             (adaptCounter) => {
                 if (adaptCounter > 0) {
+                    log.logic("NavBar adapt after content update", { adaptCounter });
                     this.adapt();
                 }
             },
@@ -94,6 +100,7 @@ patch(NavBar.prototype, {
     async onNavBarDropdownItemSelection(menu) {
         const websiteMenu = this.websiteCustomMenus.get(menu.xmlid);
         if (websiteMenu) {
+            log.logic("NavBar open website custom menu", () => ({ xmlid: menu.xmlid }));
             return this.websiteCustomMenus.open(menu);
         }
         return super.onNavBarDropdownItemSelection(menu);

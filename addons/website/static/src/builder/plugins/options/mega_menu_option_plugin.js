@@ -2,8 +2,11 @@
 import { SNIPPET_SPECIFIC_NEXT } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { MegaMenuOption } from "@website/builder/plugins/options/mega_menu_option";
+
+const log = makeLogger("website.builder.plugin.mega_menu_option_plugin");
 
 /**
  * @typedef { Object } MegaMenuOptionShared
@@ -60,7 +63,17 @@ export class MegaMenuOptionPlugin extends Plugin {
                 ),
             );
         }
+        log.pipeline("MegaMenuOptionPlugin save classes", () => ({
+            menus: proms.length,
+        }));
+        const endWrite = log.perf(
+            "MegaMenuOptionPlugin write mega_menu_classes",
+            () => ({
+                menus: proms.length,
+            }),
+        );
         await Promise.all(proms);
+        endWrite();
     }
 }
 

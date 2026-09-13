@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { EditMenuDialog } from "@website/components/dialog/edit_menu";
 import { PagePropertiesDialog } from "@website/components/dialog/page_properties";
 import { OptimizeSEODialog } from "@website/components/dialog/seo";
+
+const log = makeLogger("website.service.custom_menus");
 
 export const websiteCustomMenus = {
     dependencies: ["website", "orm", "dialog", "ui"],
@@ -15,13 +18,27 @@ export const websiteCustomMenus = {
             },
             async open(customMenu) {
                 const menuConfig = this.get(customMenu.xmlid);
+                log.logic("open", () => ({
+                    xmlid: customMenu.xmlid,
+                    openWidget: !!menuConfig.openWidget,
+                    getProps: !!menuConfig.getProps,
+                    dynamicProps: customMenu.dynamicProps,
+                }));
                 if (menuConfig.openWidget) {
                     return menuConfig.openWidget(services);
                 }
+                const endProps = log.perf("open getProps", () => ({
+                    xmlid: customMenu.xmlid,
+                }));
                 const menuProps = {
                     ...(menuConfig.getProps && (await menuConfig.getProps(services))),
                     ...customMenu.dynamicProps,
                 };
+                endProps();
+                log.lifecycle("open dialog", () => ({
+                    xmlid: customMenu.xmlid,
+                    component: menuConfig.Component?.name,
+                }));
                 return dialog.add(menuConfig.Component, menuProps);
             },
             addCustomMenus(sections) {
@@ -106,6 +123,12 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
         const getNormalizedPath = () => {
             let path = website.currentLocation;
             if (!path) {
+                log.logic(
+                    "page properties: no current location, fall back to metadata path",
+                    () => ({
+                        metadataPath: website.currentWebsite.metadata.path,
+                    }),
+                );
                 try {
                     path = new URL(website.currentWebsite.metadata.path).pathname;
                 } catch {
@@ -117,6 +140,12 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             }
             return path || "/";
         };
+        log.logic("page properties getProps", () => ({
+            model,
+            isPage,
+            mainObject,
+            websiteId,
+        }));
         const recordValues = isPage
             ? {
                   target_model_id: mainObject.id,
@@ -131,6 +160,9 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
             resId: await orm.call(model, "create", [recordValues]),
             resModel: model,
             onRecordSaved: async (record) => {
+                const endSaved = log.perf("page properties onRecordSaved", () => ({
+                    isPage,
+                }));
                 const page = isPage
                     ? (
                           await orm.read(
@@ -140,6 +172,7 @@ registry.category("website_custom_menus").add("website.menu_page_properties", {
                           )
                       )[0]
                     : undefined;
+                endSaved(() => ({ page }));
                 return website.goToWebsite({
                     websiteId: page?.website_id?.[0] ?? website.currentWebsite.id,
                     path: page?.url ?? website.currentWebsite.metadata.path,

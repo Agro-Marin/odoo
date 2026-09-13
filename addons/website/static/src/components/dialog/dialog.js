@@ -1,10 +1,14 @@
 /** @odoo-module native */
 import { Component, useState } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
 import { Dialog } from "@web/ui/dialog";
 
 const NO_OP = () => {};
+
+const log = makeLogger("website.dialog.website_dialog");
 
 export class WebsiteDialog extends Component {
     static template = "website.WebsiteDialog";
@@ -35,6 +39,7 @@ export class WebsiteDialog extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.state = useState({
             disabled: false,
         });
@@ -47,13 +52,19 @@ export class WebsiteDialog extends Component {
     protectedClick(handler) {
         return async () => {
             if (this.state.disabled) {
+                log.logic("protectedClick ignored: already running");
                 return;
             }
             this.state.disabled = true;
+            const endClick = log.perf("protectedClick handler", () => ({
+                hasHandler: Boolean(handler),
+            }));
             if (handler) {
                 await handler();
             }
+            endClick();
             if (this.props.closeOnClick) {
+                log.lifecycle("protectedClick close dialog");
                 return this.props.close();
             }
             this.state.disabled = false;

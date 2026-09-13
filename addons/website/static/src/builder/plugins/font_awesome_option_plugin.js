@@ -5,7 +5,10 @@ import { BorderConfigurator } from "@html_builder/plugins/border_configurator_op
 import { FONT_AWESOME } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
+
+const log = makeLogger("website.builder.plugin.font_awesome_option_plugin");
 
 export class FontAwesomeOption extends BaseOptionComponent {
     static template = "website.FontAwesomeOption";
@@ -29,6 +32,10 @@ export class FaResizeAction extends ClassAction {
     static id = "faResize";
     apply(context) {
         const { editingElement } = context;
+        log.pipeline("FaResizeAction apply", () => ({
+            className: editingElement.className,
+            isPreviewing: context.isPreviewing,
+        }));
         editingElement.classList.remove("fa-1x", "fa-lg");
         super.apply(context);
     }

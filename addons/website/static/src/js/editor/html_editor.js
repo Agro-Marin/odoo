@@ -3,12 +3,16 @@ import { LinkPopover } from "@html_editor/main/link/link_popover";
 import { useEffect } from "@odoo/owl";
 import { AutoComplete } from "@web/components/autocomplete";
 import { browser } from "@web/core/browser/browser";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { rpc } from "@web/core/network";
 import { _t } from "@web/core/translation";
 import { useChildRef } from "@web/core/utils/hooks";
 import { patch } from "@web/core/utils/patch";
 import { session } from "@web/session";
 import wUtils from "@website/js/utils";
+
+const log = makeLogger("website.editor.html_editor");
 
 export class AutoCompleteInLinkPopover extends AutoComplete {
     static props = {
@@ -42,6 +46,7 @@ patch(LinkPopover, {
 patch(LinkPopover.prototype, {
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.urlRef = useChildRef();
         useEffect(
             (el) => {
@@ -77,22 +82,38 @@ patch(LinkPopover.prototype, {
         });
 
         if (term[0] === "#") {
+            log.logic("loadOptionsSource: anchor term", () => ({ term }));
+            const endAnchors = log.perf("loadOptionsSource loadAnchors");
             const anchors = await wUtils.loadAnchors(
                 term,
                 this.props.linkElement.ownerDocument.body,
             );
+            endAnchors({ anchors: anchors.length });
             return anchors.map(
                 (anchor) => makeItem({ label: anchor, value: anchor }),
                 this,
             );
         } else if (term.startsWith("http") || term.length === 0) {
+            log.logic(
+                "loadOptionsSource: absolute or empty term, no suggestions",
+                () => ({
+                    term,
+                }),
+            );
             return [];
         }
 
+        const endSuggest = log.perf("loadOptionsSource get_suggested_links", () => ({
+            term,
+        }));
         const res = await rpc("/website/get_suggested_links", {
             needle: term,
             limit: 15,
         });
+        endSuggest(() => ({
+            pages: res.matching_pages.length,
+            others: res.others.length,
+        }));
         const choices = [];
         for (const page of res.matching_pages) {
             choices.push(makeItem(page));
@@ -109,10 +130,15 @@ patch(LinkPopover.prototype, {
                 }
             }
         }
+        log.pipeline("loadOptionsSource: choices built", () => ({
+            term,
+            choices: choices.length,
+        }));
         return choices;
     },
 
     onSelect(value) {
+        log.logic("onSelect", () => ({ value, isImage: this.state.isImage }));
         this.state.url = value;
         if (!this.state.isImage) {
             this.onChange();
@@ -144,6 +170,12 @@ patch(LinkPopover.prototype, {
                 this.isFrontendUrl(browser.location.href) &&
                 this.isFrontendUrl(this.props.linkElement.href)
             ) {
+                log.logic(
+                    "onClickForcePreviewMode: open frontend url in preview",
+                    () => ({
+                        href: this.props.linkElement.href,
+                    }),
+                );
                 ev.preventDefault();
                 currentUrl.pathname = `/@${currentUrl.pathname}`;
                 browser.open(currentUrl);

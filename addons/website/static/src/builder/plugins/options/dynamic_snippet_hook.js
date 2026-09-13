@@ -1,11 +1,21 @@
 /** @odoo-module native */
 import { useDomState } from "@html_builder/core/utils";
 import { onWillStart, useEnv } from "@odoo/owl";
+import { makeLogger } from "@web/core/debug/debug_logger";
+
+const log = makeLogger("website.builder.option.dynamic_snippet_hook");
 
 export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain = []) {
     const env = useEnv();
     onWillStart(async () => {
+        const endFetch = log.perf(
+            "useDynamicSnippetOption load filters and templates",
+            () => ({
+                modelNameFilter,
+            }),
+        );
         await fetchDynamicFiltersAndTemplates();
+        endFetch();
         domState.isSingleMode = dynamicSnippetUtils.isSingleModeSnippet(domState);
     });
     const dynamicFilterTemplates = {};
@@ -20,11 +30,25 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
     }));
 
     async function fetchDynamicFiltersAndTemplates() {
+        const endFilters = log.perf(
+            "useDynamicSnippetOption fetchDynamicFilters",
+            () => ({
+                modelNameFilter,
+                domain: contextualFilterDomain,
+            }),
+        );
         const fetchedDynamicFilters = await dynamicSnippetUtils.fetchDynamicFilters({
             model_name: modelNameFilter,
             search_domain: contextualFilterDomain,
         });
+        endFilters(() => ({ filters: fetchedDynamicFilters.length }));
         if (!fetchedDynamicFilters.length) {
+            log.logic(
+                "useDynamicSnippetOption no dynamic filter, templates not fetched",
+                () => ({
+                    modelNameFilter,
+                }),
+            );
             return;
         }
         const uniqueModelName = new Set();
@@ -32,8 +56,15 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
             dynamicFilters[dynamicFilter.id] = dynamicFilter;
             uniqueModelName.add(dynamicFilter.model_name);
         }
+        const endTemplates = log.perf(
+            "useDynamicSnippetOption fetchDynamicSnippetTemplates",
+            () => ({
+                modelNameFilter,
+            }),
+        );
         const fetchedDynamicFilterTemplates =
             await dynamicSnippetUtils.fetchDynamicSnippetTemplates(modelNameFilter);
+        endTemplates(() => ({ templates: fetchedDynamicFilterTemplates.length }));
         for (const dynamicFilterTemplate of fetchedDynamicFilterTemplates) {
             dynamicFilterTemplates[dynamicFilterTemplate.key] = dynamicFilterTemplate;
         }
@@ -52,6 +83,11 @@ export function useDynamicSnippetOption(modelNameFilter, contextualFilterDomain 
             dynamicFilter.defaultTemplate =
                 defaultTemplatePerModel[dynamicFilter.model_name];
         }
+        log.pipeline("useDynamicSnippetOption filters resolved", () => ({
+            filters: fetchedDynamicFilters.length,
+            models: uniqueModelName.size,
+            modelsWithDefaultTemplate: Object.keys(defaultTemplatePerModel).length,
+        }));
     }
     function getFilteredTemplates() {
         if (!Object.values(dynamicFilterTemplates).length) {

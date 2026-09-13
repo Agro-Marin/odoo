@@ -3,11 +3,14 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { ClassAction } from "@html_builder/core/core_builder_action_plugin";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { SCROLL_BUTTON } from "@website/builder/option_sequence";
 
 import { ScrollButtonOption } from "./scroll_button_option.js";
+
+const log = makeLogger("website.builder.plugin.scroll_button_option");
 
 class ScrollButtonOptionPlugin extends Plugin {
     static id = "scrollButtonOption";
@@ -52,6 +55,7 @@ class ScrollButtonManager {
     ensureButton(editingElement) {
         let button = this.buttonCache.get(editingElement);
         if (!button) {
+            log.logic("ScrollButtonManager create button: none cached");
             button = this.createButton();
             this.buttonCache.set(editingElement, button);
         }
@@ -66,6 +70,7 @@ class ScrollButtonManager {
     removeButton(editingElement) {
         const button = editingElement.querySelector(":scope > .o_scroll_button");
         if (button) {
+            log.logic("ScrollButtonManager remove button and cache it");
             button.remove();
             this.buttonCache.set(editingElement, button);
         }
@@ -89,10 +94,12 @@ export class AddScrollButtonAction extends BuilderAction {
     }
 
     apply({ editingElement }) {
+        log.pipeline("AddScrollButtonAction apply");
         this.manager.attachButton(editingElement);
     }
 
     clean({ editingElement }) {
+        log.pipeline("AddScrollButtonAction clean");
         this.manager.removeButton(editingElement);
     }
 }
@@ -106,11 +113,23 @@ export class ScrollButtonSectionHeightClassAction extends ClassAction {
     apply({ editingElement, params: { mainParam } }) {
         super.apply(...arguments);
         if (mainParam) {
+            log.logic(
+                "ScrollButtonSectionHeightClassAction apply: flex layout",
+                () => ({
+                    mainParam,
+                }),
+            );
             editingElement.classList.replace("d-lg-block", "d-lg-flex");
         } else if (editingElement.classList.contains("d-lg-flex")) {
             editingElement.classList.remove("d-lg-flex");
             const style = window.getComputedStyle(editingElement);
             const display = style.getPropertyValue("display");
+            log.logic(
+                "ScrollButtonSectionHeightClassAction apply: restore display",
+                () => ({
+                    display,
+                }),
+            );
             editingElement.classList.add(
                 display === "flex" ? "d-lg-flex" : "d-lg-block",
             );
@@ -120,6 +139,7 @@ export class ScrollButtonSectionHeightClassAction extends ClassAction {
     clean(args) {
         super.clean(args);
         if (args.params.mainParam === "o_full_screen_height") {
+            log.logic("ScrollButtonSectionHeightClassAction clean: drop scroll button");
             this.manager.removeButton(args.editingElement);
         }
     }

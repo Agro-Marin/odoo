@@ -3,8 +3,11 @@ import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
 import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.facebook_option");
 
 export class FacebookOption extends BaseOptionComponent {
     static template = "website.FacebookOption";
@@ -42,20 +45,31 @@ class FacebookOptionPlugin extends Plugin {
 
         const nodes = [...selectElements(root, ".o_facebook_page:not([data-href])")];
         if (nodes.length) {
+            log.pipeline("FacebookOptionPlugin normalize: pages without link", () => ({
+                nodes: nodes.length,
+            }));
             this.loadAndSetEmptyLink(nodes);
         }
     }
 
     async loadAndSetEmptyLink(nodes) {
         if (this.facebookUrl) {
+            log.logic(
+                "FacebookOptionPlugin loadAndSetEmptyLink: url already known",
+                () => ({
+                    facebookUrl: this.facebookUrl,
+                }),
+            );
             this.setEmptyLink(nodes);
             return;
         }
+        const endRead = log.perf("FacebookOptionPlugin read social_facebook");
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
             ["social_facebook"],
         );
+        endRead(() => ({ hasSocialFacebook: !!res?.[0]?.social_facebook }));
         if (res) {
             this.facebookUrl =
                 res[0].social_facebook || "https://www.facebook.com/Odoo";
@@ -64,6 +78,10 @@ class FacebookOptionPlugin extends Plugin {
                 this.setEmptyLink(nodes),
             );
 
+            log.logic("FacebookOptionPlugin empty links set", () => ({
+                hasChanged,
+                facebookUrl: this.facebookUrl,
+            }));
             if (hasChanged) {
                 const commonAncestor = getCommonAncestor(nodes, this.editable);
                 this.dispatchTo("content_manually_updated_handlers", commonAncestor);
@@ -90,12 +108,14 @@ export class DataAttributeListAction extends BuilderAction {
         return (editingElement.dataset[mainParam]?.split(",") || []).includes(value);
     }
     apply({ editingElement, params: { mainParam } = {}, value }) {
+        log.pipeline("DataAttributeListAction apply", () => ({ mainParam, value }));
         editingElement.dataset[mainParam] = [
             ...(editingElement.dataset[mainParam]?.split(",") || []),
             value,
         ].join(",");
     }
     clean({ editingElement, params: { mainParam } = {}, value }) {
+        log.pipeline("DataAttributeListAction clean", () => ({ mainParam, value }));
         editingElement.dataset[mainParam] = (
             editingElement.dataset[mainParam]?.split(",") || []
         )
@@ -112,8 +132,10 @@ export class CheckFacebookLinkAction extends BuilderAction {
         editingElement.dataset.id = "";
         const id = this.idFromFacebookLink(value);
         if (id) {
+            log.logic("CheckFacebookLinkAction apply: link parsed", () => ({ id }));
             editingElement.dataset.id = id;
             this.checkFacebookId(id).then((ok) => {
+                log.logic("CheckFacebookLinkAction page check", () => ({ id, ok }));
                 this.closeNotif();
                 if (ok) {
                     this.closeNotif = () => {};
@@ -125,6 +147,7 @@ export class CheckFacebookLinkAction extends BuilderAction {
                 }
             });
         } else {
+            log.logic("CheckFacebookLinkAction apply: invalid link", () => ({ value }));
             this.closeNotif();
             this.closeNotif = this.services.notification.add(
                 _t("You didn't provide a valid Facebook link"),
@@ -144,7 +167,11 @@ export class CheckFacebookLinkAction extends BuilderAction {
 
     async checkFacebookId(id) {
         try {
+            const endFetch = log.perf("CheckFacebookLinkAction fetch picture", () => ({
+                id,
+            }));
             const res = await fetch(`https://graph.facebook.com/${id}/picture`);
+            endFetch(() => ({ ok: res.ok }));
             return res.ok;
         } catch {
             return false;

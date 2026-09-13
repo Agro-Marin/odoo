@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { useService } from "@web/core/utils/hooks";
 import { SearchModel } from "@web/search/search_model";
+
+const log = makeLogger("website.view.page_search_model");
 
 export class PageSearchModel extends SearchModel {
     /**
@@ -17,8 +20,14 @@ export class PageSearchModel extends SearchModel {
     async load() {
         await super.load(...arguments);
 
+        const endFetch = log.perf("load fetchWebsites");
         await this.website.fetchWebsites();
+        endFetch();
 
+        log.logic("load website filters", () => ({
+            resModel: this.resModel,
+            hasWebsiteField: Boolean(this.searchViewFields.website_id),
+        }));
         if (this.searchViewFields.website_id) {
             await this.createFilterForAllWebsites();
             await this.selectCurrentWebsiteFilter();
@@ -32,10 +41,16 @@ export class PageSearchModel extends SearchModel {
         );
 
         if (existingWebsiteFilters.length === this.website.websites.length) {
+            log.logic("createFilterForAllWebsites skip: filters exist", () => ({
+                filters: existingWebsiteFilters.length,
+            }));
             return;
         }
 
         const websiteFilters = await this.fetchWebsiteFilters();
+        log.pipeline("createFilterForAllWebsites", () => ({
+            filters: websiteFilters.length,
+        }));
         this._createGroupOfSearchItems(websiteFilters);
     }
 
@@ -43,9 +58,11 @@ export class PageSearchModel extends SearchModel {
         let websitePageIds = {};
         if (this.resModel === "website.page") {
             const websiteIds = this.website.websites.map((website) => website.id);
+            const endPageIds = log.perf("get_website_page_ids", { websiteIds });
             websitePageIds = await this.orm.call("website", "get_website_page_ids", [
                 websiteIds,
             ]);
+            endPageIds();
         }
 
         return this.website.websites.map((website) => {
@@ -71,6 +88,7 @@ export class PageSearchModel extends SearchModel {
                 searchItem.isActive,
         );
         if (currentlySelectedWebsiteFilters.length) {
+            log.logic("selectCurrentWebsiteFilter skip: already selected");
             return;
         }
 
@@ -81,6 +99,9 @@ export class PageSearchModel extends SearchModel {
                 searchItem.name === `website_${currentWebsite.id}`,
         );
         if (currentWebsiteFilter) {
+            log.logic("selectCurrentWebsiteFilter toggle", () => ({
+                websiteId: currentWebsite.id,
+            }));
             this.toggleSearchItem(currentWebsiteFilter.id);
         }
     }
@@ -89,7 +110,9 @@ export class PageSearchModel extends SearchModel {
      * @returns {Object}
      */
     async getCurrentWebsite() {
+        const endCurrent = log.perf("get_current_website");
         const currentWebsite = await this.orm.call("website", "get_current_website");
+        endCurrent({ currentWebsite });
         if (currentWebsite) {
             return this.website.websites.find((w) => w.id === currentWebsite[0]);
         }
@@ -98,6 +121,9 @@ export class PageSearchModel extends SearchModel {
 
     async refreshFilterForAllWebsites() {
         const websiteFilters = await this.fetchWebsiteFilters();
+        log.pipeline("refreshFilterForAllWebsites", () => ({
+            filters: websiteFilters.length,
+        }));
 
         for (const websiteFilter of websiteFilters) {
             Object.values(this.searchItems).forEach((searchItem) => {

@@ -1,7 +1,10 @@
 /** @odoo-module native */
 import { InputConfirmationDialog } from "@html_builder/snippets/input_confirmation_dialog";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.translation.translate_announcement_scroll");
 
 export class TranslateAnnouncementScrollPlugin extends Plugin {
     static id = "translateAnnouncementScroll";
@@ -16,6 +19,9 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
         const announcementScrollEls = this.document.querySelectorAll(
             ".s_announcement_scroll",
         );
+        log.pipeline("listenToAnnouncementScrollClick", () => ({
+            count: announcementScrollEls.length,
+        }));
 
         for (const announcementScrollEl of announcementScrollEls) {
             this.addDomListener(announcementScrollEl, "click", () => {
@@ -25,6 +31,7 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
                     ".s_announcement_scroll_marquee_item:first-child > [data-oe-translation-source-sha]",
                 );
 
+                log.lifecycle("translate dialog open");
                 this.services.dialog.add(InputConfirmationDialog, {
                     defaultValue: translatableEl.textContent,
                     title: _t("Translate Text"),
@@ -46,6 +53,9 @@ export class TranslateAnnouncementScrollPlugin extends Plugin {
      * @param {String} inputValue
      */
     updateText(translatableEl, inputValue) {
+        log.logic("updateText", () => ({
+            changed: inputValue !== translatableEl.textContent,
+        }));
         if (inputValue !== translatableEl.textContent) {
             translatableEl.textContent = inputValue;
             translatableEl.dataset.oeTranslationState = "translated";

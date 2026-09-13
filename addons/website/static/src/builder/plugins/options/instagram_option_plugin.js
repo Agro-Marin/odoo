@@ -5,8 +5,11 @@ import { SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequence";
 import { Plugin } from "@html_editor/plugin";
 import { getCommonAncestor, selectElements } from "@html_editor/utils/dom_traversal";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
+
+const log = makeLogger("website.builder.plugin.instagram_option");
 
 /**
  * @typedef { Object } InstagramOptionShared
@@ -34,6 +37,7 @@ class InstagramOptionPlugin extends Plugin {
 
     setup() {
         this.instagramUrlStr = "instagram.com/";
+        log.lifecycle("InstagramOptionPlugin setup");
     }
 
     normalize(root) {
@@ -44,20 +48,34 @@ class InstagramOptionPlugin extends Plugin {
             ),
         ];
         if (nodes.length) {
+            log.pipeline(
+                "InstagramOptionPlugin normalize: default pages found",
+                () => ({
+                    nodes: nodes.length,
+                }),
+            );
             this.loadAndSetPage(nodes);
         }
     }
 
     async loadAndSetPage(nodes) {
         if (this.instagramUrl) {
+            log.logic(
+                "InstagramOptionPlugin loadAndSetPage: url already known",
+                () => ({
+                    instagramUrl: this.instagramUrl,
+                }),
+            );
             this.setPage(nodes);
             return;
         }
+        const endRead = log.perf("InstagramOptionPlugin read social_instagram");
         const res = await this.services.orm.read(
             "website",
             [this.services.website.currentWebsite.id],
             ["social_instagram"],
         );
+        endRead(() => ({ hasSocialInstagram: !!res?.[0]?.social_instagram }));
         if (res && res[0].social_instagram) {
             this.instagramUrl = this.instagramPageNameFromUrl(res[0].social_instagram);
 
@@ -65,6 +83,10 @@ class InstagramOptionPlugin extends Plugin {
                 this.setPage(nodes),
             );
 
+            log.logic("InstagramOptionPlugin default pages set", () => ({
+                hasChanged,
+                instagramUrl: this.instagramUrl,
+            }));
             if (hasChanged) {
                 const commonAncestor = getCommonAncestor(nodes, this.editable);
                 this.dispatchTo("content_manually_updated_handlers", commonAncestor);
@@ -114,12 +136,17 @@ export class InstagramPageAction extends BuilderAction {
     }
     apply({ editingElement, value }) {
         delete editingElement.dataset.instagramPageIsDefault;
+        log.logic("InstagramPageAction apply", () => ({
+            value,
+            urlMarker: this.instagramUrlStr,
+        }));
         if (value.includes(this.instagramUrlStr)) {
             value =
                 this.dependencies.instagramOption.instagramPageNameFromUrl(value) || "";
         }
         editingElement.dataset["instagramPage"] = value;
         if (value === "") {
+            log.logic("InstagramPageAction invalid page name");
             this.services.notification.add(_t("The Instagram page name is not valid"), {
                 type: "warning",
             });

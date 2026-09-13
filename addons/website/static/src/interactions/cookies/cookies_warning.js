@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.cookies_warning");
 
 export class CookiesWarning extends Interaction {
     static selector = ".o_no_optional_cookie";
@@ -23,6 +26,9 @@ export class CookiesWarning extends Interaction {
         },
     };
     setup() {
+        log.lifecycle("CookiesWarning setup", () => ({
+            previous: this.el.previousElementSibling?.tagName,
+        }));
         this.keptIframeEl = undefined;
     }
 }

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.header_top");
 
 export class HeaderTop extends Interaction {
     static selector = "header#top";
@@ -18,6 +21,9 @@ export class HeaderTop extends Interaction {
     setup() {
         this.showCollapse = false;
         this.mobileNavbarEl = this.el.querySelector("#top_menu_collapse_mobile");
+        log.lifecycle("HeaderTop setup", () => ({
+            hasMobileNavbar: !!this.mobileNavbarEl,
+        }));
     }
 }
 

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.ripple_effect");
 
 export class RippleEffect extends Interaction {
     static selector = ".btn, .dropdown-toggle, .dropdown-item";
@@ -29,6 +32,9 @@ export class RippleEffect extends Interaction {
             this.rippleEl.classList.add("o_ripple_item");
             this.rippleEl.style.animationDuration = `${this.duration}ms`;
             this.insert(this.rippleEl, this.el);
+            log.lifecycle("RippleEffect ripple element inserted", () => ({
+                className: this.el.className,
+            }));
         }
 
         clearTimeout(this.timeoutID);
@@ -52,6 +58,7 @@ export class RippleEffect extends Interaction {
             this.isActive = false;
             this.rippleEl?.remove();
             this.rippleEl = undefined;
+            log.lifecycle("RippleEffect ripple element removed");
         }, this.duration);
     }
 }

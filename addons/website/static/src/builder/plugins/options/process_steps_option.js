@@ -1,5 +1,9 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
+
+const log = makeLogger("website.builder.option.process_steps_option");
 
 export const connectorOptionParams = [
     { key: "", param: "None" },
@@ -14,6 +18,7 @@ export class ProcessStepsOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.connectorOptionParams = connectorOptionParams;
     }
 

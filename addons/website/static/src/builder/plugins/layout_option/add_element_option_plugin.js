@@ -5,9 +5,12 @@ import {
     setElementToMaxZindex,
 } from "@html_builder/utils/grid_layout_utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { onceAllImagesLoaded } from "@website/utils/images";
+
+const log = makeLogger("website.builder.plugin.add_element_option");
 
 /**
  * @typedef { Object } AddElementOptionShared
@@ -35,11 +38,15 @@ export class AddElementOptionPlugin extends Plugin {
     addGridElement(rowEl, contentEl, columnSpan, rowSpan, extraClasses = []) {
         const currentTime = new Date().getTime();
         if (this.lastAddTime && (currentTime - this.lastAddTime) / 1000 < 15) {
+            log.logic("addGridElement cascade: added within 15s of previous", () => ({
+                lastStartPosition: [...this.lastStartPosition],
+            }));
             this.lastStartPosition = [
                 this.lastStartPosition[0] + 1,
                 this.lastStartPosition[1] + 1,
             ];
         } else {
+            log.logic("addGridElement reset start position");
             this.lastStartPosition = [1, 1];
         }
         this.lastAddTime = currentTime;
@@ -56,6 +63,10 @@ export class AddElementOptionPlugin extends Plugin {
         const rowStart = this.lastStartPosition[0];
         let columnStart = this.lastStartPosition[1];
         if (columnStart + columnSpan > 13) {
+            log.logic("addGridElement column overflow: wrap to first column", {
+                columnStart,
+                columnSpan,
+            });
             columnStart = 1;
             this.lastStartPosition[1] = columnStart;
         }
@@ -63,6 +74,14 @@ export class AddElementOptionPlugin extends Plugin {
             ${rowStart} / ${columnStart} / ${rowStart + rowSpan} / ${columnStart + columnSpan}
         `;
 
+        log.pipeline("addGridElement insert grid item", () => ({
+            tagName: contentEl.tagName,
+            rowStart,
+            columnStart,
+            columnSpan,
+            rowSpan,
+            items: rowEl.children.length,
+        }));
         setElementToMaxZindex(newColumnEl, rowEl);
 
         rowEl.appendChild(newColumnEl);
@@ -73,6 +92,7 @@ export class AddElementOptionPlugin extends Plugin {
         const middleY = (newColumnPosition.top + newColumnPosition.bottom) / 2;
         const sameCoordinatesEl = this.document.elementFromPoint(middleX, middleY);
         if (!sameCoordinatesEl || !newColumnEl.contains(sameCoordinatesEl)) {
+            log.logic("addGridElement new item hidden: scroll into view");
             newColumnEl.scrollIntoView({ behavior: "smooth", block: "center" });
         }
         this.dependencies.builderOptions.setNextTarget(newColumnEl);
@@ -88,17 +108,23 @@ export class AddGridElementAction extends BuilderAction {
     }
 
     async apply({ editingElement: rowEl, params: { mainParam: elementType } }) {
+        log.logic("AddGridElementAction apply", { elementType });
         if (elementType === "image") {
             let imageEl;
+            const endMediaDialog = log.perf("AddGridElementAction media dialog");
             await this.dependencies.media.openMediaDialog({
                 onlyImages: true,
                 noDocuments: true,
                 save: (selectedImageEl) => (imageEl = selectedImageEl),
             });
+            endMediaDialog(() => ({ selected: !!imageEl }));
             if (!imageEl) {
+                log.logic("AddGridElementAction skip: no image selected");
                 return;
             }
+            const endImagesLoaded = log.perf("AddGridElementAction wait image load");
             await onceAllImagesLoaded(imageEl);
+            endImagesLoaded();
             this.dependencies.addElementOption.addGridElement(rowEl, imageEl, 6, 6, [
                 "o_grid_item_image",
             ]);

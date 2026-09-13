@@ -3,6 +3,8 @@ import { normalizeColor } from "@html_builder/utils/utils_css";
 import { getHtmlStyle } from "@html_editor/utils/formatting";
 import { Component, onWillStart, useState } from "@odoo/owl";
 import { ColorPicker } from "@web/components/color_picker";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 import { _t } from "@web/core/translation";
 
 import { HighlightPicker } from "./highlight_picker.js";
@@ -31,6 +33,8 @@ export const highlightIdToName = {
     bold_2: "Bold 2",
 };
 
+const log = makeLogger("website.builder.option.highlight_configurator");
+
 export class HighlightConfigurator extends Component {
     static template = "website.highlightConfigurator";
     static components = { ColorPicker };
@@ -49,10 +53,12 @@ export class HighlightConfigurator extends Component {
     };
 
     setup() {
+        useLifecycleLog(log);
         this.state = useState(this.props.getHighlightState());
         this.highlightIdToName = highlightIdToName;
         onWillStart(() => {
             if (!this.state.highlightId) {
+                log.logic("open picker on start: no highlight selected");
                 this.openHighlightPicker(false);
             }
         });
@@ -65,6 +71,7 @@ export class HighlightConfigurator extends Component {
         const fs3Size = parseFloat(getComputedStyle(fs3).fontSize);
         fs3.remove();
         const fontRatio = this.props.getMaxFontSize() / fs3Size;
+        log.lifecycle("openHighlightPicker", { withPrevious, fs3Size, fontRatio });
         this.props.componentStack.push(
             HighlightPicker,
             {
@@ -82,6 +89,7 @@ export class HighlightConfigurator extends Component {
     }
 
     openColorPicker() {
+        log.lifecycle("openColorPicker");
         this.props.componentStack.push(
             ColorPicker,
             {
@@ -105,6 +113,7 @@ export class HighlightConfigurator extends Component {
     }
 
     selectHighlight(highlightId) {
+        log.logic("selectHighlight", { highlightId });
         this.props.componentStack.pop();
         this.props.applyHighlight(highlightId);
     }
@@ -114,10 +123,16 @@ export class HighlightConfigurator extends Component {
         const highlightColor = color.startsWith("hb-cp-")
             ? `var(--${color.replace("hb-cp-", "")})`
             : normalizeColor(color, getHtmlStyle(document));
+        log.logic("selectHighlightColor", () => ({
+            color,
+            isPaletteColor: color.startsWith("hb-cp-"),
+            highlightColor,
+        }));
         this.props.applyHighlightStyle("--text-highlight-color", highlightColor);
     }
 
     deleteHighlight() {
+        log.logic("deleteHighlight: reopen picker");
         this.props.deleteHighlight();
         this.openHighlightPicker(false);
     }

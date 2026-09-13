@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { HoverableDropdown } from "@website/interactions/dropdown/hoverable_dropdown";
+
+const log = makeLogger("website.interaction.hoverable_dropdown.edit");
 
 const HoverableDropdownEdit = (I) =>
     class extends I {
@@ -10,6 +13,12 @@ const HoverableDropdownEdit = (I) =>
          */
         onMouseEnter(ev, currentTargetEl) {
             if (this.el.querySelector(".dropdown-toggle.show")) {
+                log.logic(
+                    "HoverableDropdownEdit onMouseEnter: a dropdown is open, skip",
+                    () => ({
+                        target: currentTargetEl.className,
+                    }),
+                );
                 return;
             } else {
                 super.onMouseEnter(ev, currentTargetEl);

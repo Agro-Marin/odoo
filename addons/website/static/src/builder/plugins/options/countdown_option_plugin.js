@@ -5,13 +5,17 @@ import { before, SNIPPET_SPECIFIC_END } from "@html_builder/utils/option_sequenc
 import { getElementsWithOption } from "@html_builder/utils/utils";
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { renderToElement } from "@web/core/utils/render";
+
+const log = makeLogger("website.builder.plugin.countdown_option");
 
 export class CountdownOption extends BaseOptionComponent {
     static template = "website.CountdownOption";
     static selector = ".s_countdown";
     static cleanForSave = (editingEl) => {
+        log.pipeline("CountdownOption cleanForSave");
         editingEl.classList.remove("s_countdown_enable_preview");
     };
 }
@@ -30,6 +34,9 @@ class CountdownOptionPlugin extends Plugin {
         },
         on_cloned_handlers: ({ cloneEl }) => {
             const countdownEls = getElementsWithOption(cloneEl, ".s_countdown");
+            log.pipeline("CountdownOptionPlugin onCloned", () => ({
+                countdowns: countdownEls.length,
+            }));
             for (const countdownEl of countdownEls) {
                 countdownEl.classList.remove("s_countdown_enable_preview");
             }
@@ -49,6 +56,7 @@ export class BaseCountdownAction extends BuilderAction {
     }
 
     setEndAction({ editingElement, value }) {
+        log.pipeline("BaseCountdownAction setEndAction", () => ({ value }));
         editingElement.dataset.endAction = value;
         const endMessageEl = editingElement.querySelector(".s_countdown_end_message");
 
@@ -67,12 +75,18 @@ export class BaseCountdownAction extends BuilderAction {
             if (!endMessageEl) {
                 const existingEndMessage =
                     this.editingElEndMessages.get(editingElement);
+                log.logic("BaseCountdownAction add end message", () => ({
+                    reuseSaved: !!existingEndMessage,
+                }));
                 editingElement.appendChild(
                     existingEndMessage ||
                         renderToElement("website.s_countdown.end_message"),
                 );
             }
         } else {
+            log.logic("BaseCountdownAction remove end message", () => ({
+                hadEndMessage: !!endMessageEl,
+            }));
             endMessageEl?.remove();
             this.editingElEndMessages.set(editingElement, endMessageEl);
             this.toggleEndMessagePreview(editingElement, false);
@@ -84,6 +98,7 @@ export class BaseCountdownAction extends BuilderAction {
     }
 
     setLayout({ editingElement, value }) {
+        log.pipeline("BaseCountdownAction setLayout", () => ({ value }));
         switch (value) {
             case "circle":
                 editingElement.dataset.progressBarStyle = "disappear";
@@ -122,6 +137,7 @@ export class BaseCountdownAction extends BuilderAction {
 export class ReloadCountdownAction extends BaseCountdownAction {
     static id = "reloadCountdown";
     apply({ editingElement }) {
+        log.pipeline("ReloadCountdownAction apply: update interactions");
         return this.dispatchTo("update_interactions", editingElement);
     }
 }
@@ -140,9 +156,11 @@ export class PreviewEndMessageAction extends BaseCountdownAction {
     static id = "previewEndMessage";
     static dependencies = ["builderOptions"];
     apply({ editingElement }) {
+        log.pipeline("PreviewEndMessageAction apply");
         this.toggleEndMessagePreview(editingElement, true);
     }
     clean({ editingElement }) {
+        log.pipeline("PreviewEndMessageAction clean");
         this.toggleEndMessagePreview(editingElement, false);
         this.dependencies.builderOptions.setNextTarget(editingElement);
     }

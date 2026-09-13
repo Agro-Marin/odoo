@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
 import { sendRequest } from "@website/js/utils";
+
+const log = makeLogger("website.interaction.post_link");
 
 export class PostLink extends Interaction {
     static selector = ".post_link";
@@ -31,6 +34,10 @@ export class PostLink extends Interaction {
                 data[key.slice(5)] = value;
             }
         }
+        log.pipeline("PostLink onClickPost: send request", () => ({
+            url: this.el.dataset.post || this.el.href || this.el.value,
+            params: Object.keys(data),
+        }));
         sendRequest(this.el.dataset.post || this.el.href || this.el.value, data);
     }
 }

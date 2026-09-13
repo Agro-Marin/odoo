@@ -1,7 +1,11 @@
 /** @odoo-module native */
 import { BaseOptionComponent } from "@html_builder/core/utils";
+import { makeLogger } from "@web/core/debug/debug_logger";
+import { useLifecycleLog } from "@web/core/debug/logger_hooks";
 
 import { basicHeaderOptionSettings } from "./basicHeaderOptionSettings.js";
+
+const log = makeLogger("website.builder.option.header_elements_option");
 
 export class HeaderElementsOption extends BaseOptionComponent {
     static template = "website.HeaderElementsOption";
@@ -9,6 +13,7 @@ export class HeaderElementsOption extends BaseOptionComponent {
 
     setup() {
         super.setup();
+        useLifecycleLog(log);
         this.customizeWebsite = this.dependencies.customizeWebsite;
         const views = [
             "website.option_header_brand_logo",

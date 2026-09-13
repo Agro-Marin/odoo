@@ -1,4 +1,5 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { formatDate, formatDateTime } from "@web/core/l10n/dates";
 import { luxon } from "@web/core/l10n/luxon";
 import { registry } from "@web/core/registry";
@@ -8,9 +9,16 @@ import { Form } from "@website/snippets/s_website_form/form";
 
 const { DateTime } = luxon;
 
+const log = makeLogger("website.snippet.s_website_form.edit");
+
 export class FormEdit extends Interaction {
     static selector = ".s_website_form form, form.s_website_form";
     start() {
+        log.pipeline("FormEdit start: formatting datetime inputs", () => ({
+            inputs: this.el.querySelectorAll(
+                ".s_website_form_input.datetimepicker-input",
+            ).length,
+        }));
         for (const el of this.el.querySelectorAll(
             ".s_website_form_input.datetimepicker-input",
         )) {
@@ -49,6 +57,7 @@ patch(Form.prototype, {
     },
     prefillValues() {
         if (this.editTranslations) {
+            log.logic("Form prefillValues: skipped while editing translations");
             return;
         }
         super.prefillValues();

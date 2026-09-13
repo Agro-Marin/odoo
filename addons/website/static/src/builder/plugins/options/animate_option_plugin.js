@@ -10,6 +10,7 @@ import {
 } from "@html_editor/utils/dom_traversal";
 import { childNodeIndex, DIRECTIONS, nodeSize } from "@html_editor/utils/position";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { getScrollingElement } from "@web/core/utils/dom/scrolling";
@@ -17,6 +18,8 @@ import { getScrollingElement } from "@web/core/utils/dom/scrolling";
 import { AnimateOption } from "./animate_option.js";
 import { AnimateText } from "./animate_text.js";
 import { EmphasizeAnimatedText } from "./emphasize_animated_text.js";
+
+const log = makeLogger("website.builder.plugin.animate_option");
 
 /**
  * @typedef { Object } AnimateOptionShared
@@ -83,6 +86,7 @@ export class AnimateOptionPlugin extends Plugin {
 
     setup() {
         this.scrollingElement = getScrollingElement(this.document);
+        log.lifecycle("AnimateOptionPlugin setup");
     }
 
     getEffectsItems(isActiveItem) {
@@ -158,18 +162,26 @@ export class AnimateOptionPlugin extends Plugin {
     async forceAnimation(editingElement) {
         editingElement.style.animationName = "dummy";
         if (editingElement.classList.contains("o_animate_on_scroll")) {
+            log.logic("AnimateOptionPlugin forceAnimation on scroll: dispatch resize");
             void editingElement.offsetWidth;
             editingElement.style.animationName = "";
             this.window.dispatchEvent(new Event("resize"));
         } else {
             await new Promise((resolve) => setTimeout(resolve));
             if (!editingElement.isConnected) {
+                log.logic(
+                    "AnimateOptionPlugin forceAnimation skipped: element detached",
+                );
                 return;
             }
+            log.lifecycle("AnimateOptionPlugin forceAnimation start", () => ({
+                className: editingElement.className,
+            }));
             editingElement.classList.add("o_animating");
             this.scrollingElement.classList.add("o_wanim_overflow_xy_hidden");
             editingElement.style.animationName = "";
             const clearOverflow = () => {
+                log.lifecycle("AnimateOptionPlugin forceAnimation clear overflow");
                 this.scrollingElement.classList.remove("o_wanim_overflow_xy_hidden");
                 editingElement.classList.remove("o_animating");
             };
@@ -193,17 +205,22 @@ export class AnimateOptionPlugin extends Plugin {
 
         const existingAnimatedTextEl = this.getAnimatedText();
         if (existingAnimatedTextEl) {
+            log.logic("AnimateOptionPlugin reuse existing animated text");
             return { element: existingAnimatedTextEl, onReset: resetAnimatedText };
         }
         const savePoint = this.dependencies.history.makeSavePoint();
         const { element: createdAnimatedTextEl, didRemoveOtherTextAnimation } =
             this.createDefaultTextAnimation();
         if (createdAnimatedTextEl) {
+            log.logic("AnimateOptionPlugin created animated text", () => ({
+                didRemoveOtherTextAnimation,
+            }));
             return {
                 element: createdAnimatedTextEl,
                 onReset: didRemoveOtherTextAnimation ? resetAnimatedText : savePoint,
             };
         }
+        log.logic("AnimateOptionPlugin cannot animate selection: revert");
         savePoint();
         this.services.notification.add(
             _t(
@@ -250,6 +267,9 @@ export class AnimateOptionPlugin extends Plugin {
                         this.dependencies.split.isUnsplittable(node.parentNode) &&
                         !node.parentNode.classList.contains("o_animated_text")
                     ) {
+                        log.logic(
+                            "AnimateOptionPlugin split stopped: unsplittable ancestor",
+                        );
                         return;
                     }
                     node = this.dependencies.split.splitElement(
@@ -277,6 +297,9 @@ export class AnimateOptionPlugin extends Plugin {
         const selection = this.dependencies.split.splitSelection();
         const commonAncestor = this.splitForAnimatedText(selection);
         if (!commonAncestor) {
+            log.logic(
+                "AnimateOptionPlugin createDefaultTextAnimation: no common ancestor",
+            );
             return {};
         }
         const { startContainer, endContainer, direction } = selection;
@@ -300,6 +323,9 @@ export class AnimateOptionPlugin extends Plugin {
             node.replaceWith(...node.childNodes);
             didRemoveOtherTextAnimation = true;
         }
+        log.pipeline("AnimateOptionPlugin wrap selection in animated text", () => ({
+            didRemoveOtherTextAnimation,
+        }));
         span.classList.add("o_animated_text", "o_animate_preview");
         span.classList.add("o_animate", "o_anim_fade_in");
         this.dependencies.selection.setSelection(
@@ -370,11 +396,19 @@ export class AnimateOptionPlugin extends Plugin {
             .map((el) => (el.tagName === "IMG" && el) || el.querySelectorAll("img"))
             .flat()
             .filter(Boolean);
+        log.pipeline("AnimateOptionPlugin normalize", () => ({
+            previews: previewEls.length,
+            animated: animateEls.length,
+            images: animateImg.length,
+        }));
         for (const img of animateImg) {
             img.loading = "eager";
         }
     }
     cleanForSave({ root }) {
+        log.pipeline("AnimateOptionPlugin cleanForSave", () => ({
+            previews: root.querySelectorAll(".o_animate_preview").length,
+        }));
         for (const el of root.querySelectorAll(".o_animate_preview")) {
             el.classList.remove("o_animate_preview");
         }
@@ -410,12 +444,19 @@ export class SetAnimationModeAction extends BuilderAction {
             delete editingElement.dataset.scrollZoneEnd;
         }
         if (effectName === "onHover") {
+            const endHover = log.perf("SetAnimationModeAction remove hover effect");
             await this.getResource("remove_hover_effect_handlers")[0](editingElement);
+            endHover();
         }
 
         const isNextAnimationFadein = this.animationWithFadein.includes(
             nextAction.value,
         );
+        log.logic("SetAnimationModeAction clean", () => ({
+            effectName,
+            nextEffect: nextAction.value,
+            isNextAnimationFadein,
+        }));
         if (!isNextAnimationFadein) {
             this._removeEffectAndDirectionClasses(editingElement.classList);
             editingElement.style.setProperty("--wanim-intensity", "");
@@ -425,6 +466,10 @@ export class SetAnimationModeAction extends BuilderAction {
     }
 
     async apply({ editingElement, value: effectName, params: { forceAnimation } }) {
+        log.pipeline("SetAnimationModeAction apply", () => ({
+            effectName,
+            forceAnimation,
+        }));
         if (this.animationWithFadein.includes(effectName)) {
             editingElement.classList.add("o_anim_fade_in");
         }
@@ -433,7 +478,9 @@ export class SetAnimationModeAction extends BuilderAction {
             editingElement.dataset.scrollZoneEnd = 100;
         }
         if (effectName === "onHover") {
+            const endHover = log.perf("SetAnimationModeAction set hover effect");
             await this.getResource("set_hover_effect_handlers")[0](editingElement);
+            endHover();
         }
         if (forceAnimation) {
             this.dependencies.animateOption.forceAnimation(editingElement);
@@ -479,6 +526,7 @@ export class SetAnimateIntensityAction extends BuilderAction {
         return intensity;
     }
     apply({ editingElement, value }) {
+        log.pipeline("SetAnimateIntensityAction apply", () => ({ value }));
         editingElement.style.setProperty("--wanim-intensity", `${value}`);
         this.dependencies.animateOption.forceAnimation(editingElement);
     }
@@ -490,6 +538,7 @@ export class ForceAnimationAction extends BuilderAction {
         return true;
     }
     apply({ editingElement }) {
+        log.pipeline("ForceAnimationAction apply");
         this.dependencies.animateOption.forceAnimation(editingElement);
     }
 }
@@ -519,6 +568,10 @@ export class SetAnimationEffectAction extends BuilderAction {
         params: { mainParam: directionClassName },
         value: effectClassName,
     }) {
+        log.pipeline("SetAnimationEffectAction apply", () => ({
+            effectClassName,
+            directionClassName,
+        }));
         if (directionClassName) {
             editingElement.classList.add(directionClassName);
         }

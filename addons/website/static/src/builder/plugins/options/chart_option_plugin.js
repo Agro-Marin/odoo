@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { randomColor } from "@web/core/utils/format/colors";
 
 import { ChartOption, DATASET_KEY_PREFIX, getColor } from "./chart_option.js";
+
+const log = makeLogger("website.builder.plugin.chart_option_plugin");
 
 /**
  * @typedef { Object } ChartOptionShared
@@ -88,8 +91,14 @@ export class SetChartTypeAction extends BaseChartAction {
         editingElement.dataset.type = value;
 
         const data = this.getData(editingElement);
+        log.pipeline("SetChartTypeAction apply", () => ({
+            type: value,
+            datasets: data.datasets.length,
+            labels: data.labels.length,
+        }));
         if (this.isPieChart(editingElement)) {
             if (typeof data.datasets[0].backgroundColor === "string") {
+                log.logic("SetChartTypeAction convert to one color per slice");
                 data.datasets.forEach((dataset) => {
                     dataset.backgroundColor = [dataset.backgroundColor];
                     dataset.borderColor = [dataset.borderColor];
@@ -100,6 +109,7 @@ export class SetChartTypeAction extends BaseChartAction {
                 });
             }
         } else if (Array.isArray(data.datasets[0].backgroundColor)) {
+            log.logic("SetChartTypeAction convert to one color per dataset");
             data.datasets.forEach((dataset) => {
                 dataset.backgroundColor = dataset.backgroundColor[0];
                 dataset.borderColor = dataset.borderColor[0];
@@ -123,6 +133,10 @@ export class AddColumnAction extends BaseChartAction {
                 : this.randomColor(),
             borderColor: this.isPieChart(editingElement) ? fillDatasetArray("") : "",
         };
+        log.pipeline("AddColumnAction apply", () => ({
+            datasets: data.datasets.length,
+            labels: data.labels.length,
+        }));
         data.datasets.push(newDataset);
         this.updateDOMData(editingElement, data);
     }
@@ -132,6 +146,11 @@ export class RemoveColumnAction extends BaseChartAction {
     apply({ editingElement, params: { mainParam: key } }) {
         const data = this.getData(editingElement);
         const toRemoveIndex = data.datasets.findIndex((dataset) => dataset.key === key);
+        log.logic("RemoveColumnAction apply", () => ({
+            key,
+            toRemoveIndex,
+            datasets: data.datasets.length,
+        }));
         data.datasets.splice(toRemoveIndex, 1);
         this.updateDOMData(editingElement, data);
     }
@@ -140,6 +159,7 @@ export class AddRowAction extends BaseChartAction {
     static id = "addRow";
     apply({ editingElement }) {
         const data = this.getData(editingElement);
+        log.pipeline("AddRowAction apply", () => ({ labels: data.labels.length }));
         data.labels.push("");
         data.datasets.forEach((dataset) => {
             dataset.data.push(0);
@@ -155,6 +175,10 @@ export class RemoveRowAction extends BaseChartAction {
     static id = "removeRow";
     apply({ editingElement, params: { mainParam: labelIndex } }) {
         const data = this.getData(editingElement);
+        log.pipeline("RemoveRowAction apply", () => ({
+            labelIndex,
+            labels: data.labels.length,
+        }));
         data.labels.splice(labelIndex, 1);
         data.datasets.forEach((dataset) => {
             dataset.data.splice(labelIndex, 1);
@@ -180,6 +204,11 @@ export class UpdateDatasetValueAction extends BaseChartAction {
         const targetDataset = data.datasets.find(
             (dataset) => dataset.key === datasetKey,
         );
+        log.pipeline("UpdateDatasetValueAction apply", () => ({
+            datasetKey,
+            valueIndex,
+            found: !!targetDataset,
+        }));
         targetDataset.data[valueIndex] = value;
         this.updateDOMData(editingElement, data);
     }
@@ -198,6 +227,10 @@ export class UpdateDatasetLabelAction extends BaseChartAction {
         const targetDataset = data.datasets.find(
             (dataset) => dataset.key === datasetKey,
         );
+        log.pipeline("UpdateDatasetLabelAction apply", () => ({
+            datasetKey,
+            found: !!targetDataset,
+        }));
         targetDataset.label = value;
         this.updateDOMData(editingElement, data);
     }
@@ -211,6 +244,7 @@ export class UpdateLabelNameAction extends BaseChartAction {
     }
     apply({ editingElement, value, params: { mainParam: labelIndex } }) {
         const data = this.getData(editingElement);
+        log.pipeline("UpdateLabelNameAction apply", () => ({ labelIndex }));
         data.labels[labelIndex] = value;
         this.updateDOMData(editingElement, data);
     }
@@ -258,6 +292,14 @@ export class setMinMaxAction extends BaseChartAction {
                 [noMin, noMax] = [noMax, noMin];
             }
         }
+        log.logic("setMinMaxAction apply", () => ({
+            type,
+            value,
+            minValue,
+            maxValue,
+            noMin,
+            noMax,
+        }));
 
         if (noMin) {
             delete editingElement.dataset.ticksMin;
@@ -283,6 +325,12 @@ export class ColorChangeAction extends BaseChartAction {
     }
     apply({ editingElement, value, params: { type, datasetIndex, dataIndex } }) {
         value = value.replace("var(--", "").replace(")", "");
+        log.pipeline("ColorChangeAction apply", () => ({
+            type,
+            datasetIndex,
+            dataIndex,
+            value,
+        }));
         const data = this.getData(editingElement);
         if (this.isPieChart(editingElement)) {
             data.datasets[datasetIndex][type][dataIndex] = value;

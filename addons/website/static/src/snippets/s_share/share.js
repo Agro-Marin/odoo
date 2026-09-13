@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_share");
 
 export class Share extends Interaction {
     static selector = ".s_share, .oe_share";
@@ -24,6 +27,9 @@ export class Share extends Interaction {
                 modifiedUrl.searchParams.has(param),
             )
         ) {
+            log.logic("onClick: no share params, default navigation", () => ({
+                href: aEl.href,
+            }));
             return;
         }
 
@@ -70,6 +76,13 @@ export class Share extends Interaction {
             }
         }
 
+        log.logic("onClick: opening share popup", () => ({
+            urlParam: urlParamFound,
+            titleParam: titleParamFound,
+            mediaParam: mediaParamFound,
+            whatsapp: aEl.classList.contains("s_share_whatsapp"),
+            hasOgImage: !!document.querySelector("meta[property='og:image']"),
+        }));
         window.open(
             modifiedUrl.toString(),
             aEl.target,

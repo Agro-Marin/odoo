@@ -6,10 +6,13 @@ import { DEFAULT_PALETTE } from "@html_editor/utils/color";
 import { getCSSVariableValue, getHtmlStyle } from "@html_editor/utils/formatting";
 import { loadImage } from "@html_editor/utils/image_processing";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { normalizeCSSColor } from "@web/core/utils/format/colors";
 
 import { DynamicSvgOption } from "./dynamic_svg_option.js";
+
+const log = makeLogger("website.builder.plugin.dynamic_svg_option");
 
 class DynamicSvgOptionPlugin extends Plugin {
     static id = "DynamicSvgOption";
@@ -49,6 +52,10 @@ export class SvgColorAction extends BuilderAction {
         const newURL = new URL(imgEl.src, window.location.origin);
         let colorValue = color ? this.colorToSearchParams(color) : "";
         if (!colorValue) {
+            log.logic("SvgColorAction load fallback: theme or default palette color", {
+                colorName,
+                color,
+            });
             const colorId = colorName.slice(1);
             colorValue =
                 getCSSVariableValue(
@@ -58,7 +65,9 @@ export class SvgColorAction extends BuilderAction {
         }
         newURL.searchParams.set(colorName, colorValue);
         const src = newURL.pathname + newURL.search;
+        const endLoadImage = log.perf("SvgColorAction load image", { colorName, src });
         await loadImage(src);
+        endLoadImage();
         return src;
     }
     apply({
@@ -67,6 +76,7 @@ export class SvgColorAction extends BuilderAction {
         value: color,
         loadResult: newSrc,
     }) {
+        log.pipeline("SvgColorAction apply", { colorName, color, newSrc });
         imgEl.setAttribute("src", newSrc);
     }
 }

@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { FloatingBlocks } from "@website/snippets/s_floating_blocks/floating_blocks";
+
+const log = makeLogger("website.snippet.s_floating_blocks.edit");
 
 const FloatingBlocksEdit = (I) =>
     class extends I {
@@ -20,6 +23,9 @@ const FloatingBlocksEdit = (I) =>
             return true;
         }
         start() {
+            log.lifecycle("start: rendering empty-alert template", () => ({
+                blocks: this.el.querySelectorAll(".s_floating_blocks_block").length,
+            }));
             this.renderAt(
                 "website.s_floating_blocks.alert.empty",
                 {},
@@ -29,6 +35,7 @@ const FloatingBlocksEdit = (I) =>
         }
         onAddCard() {
             const applySpec = { editingElement: this.el };
+            log.pipeline("onAddCard: applying addFloatingBlockCard");
             this.services["website_edit"].applyAction(
                 "addFloatingBlockCard",
                 applySpec,

@@ -2,9 +2,12 @@
 import { BuilderAction } from "@html_builder/core/builder_action";
 import { BaseOptionComponent } from "@html_builder/core/utils";
 import { Plugin } from "@html_editor/plugin";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { generateGMapLink } from "@website/js/utils";
+
+const log = makeLogger("website.builder.plugin.map_option");
 
 export class MapOption extends BaseOptionComponent {
     static template = "website.mapOption";
@@ -32,10 +35,15 @@ export class MapUpdateSrcAction extends BuilderAction {
 
         if (editingElement.dataset.mapAddress) {
             const url = generateGMapLink(editingElement.dataset);
+            log.logic("MapUpdateSrcAction apply", () => ({
+                url,
+                changed: url !== embedded.getAttribute("src"),
+            }));
             if (url !== embedded.getAttribute("src")) {
                 embedded.setAttribute("src", url);
             }
         } else {
+            log.logic("MapUpdateSrcAction apply: no address, blank map");
             embedded.setAttribute("src", "about:blank");
         }
         embedded.classList.toggle("d-none", !editingElement.dataset.mapAddress);
@@ -50,6 +58,7 @@ export class MapDescriptionAction extends BuilderAction {
         return editingElement.querySelector(".description") !== null;
     }
     apply({ editingElement }) {
+        log.pipeline("MapDescriptionAction apply");
         editingElement.appendChild(
             document.createRange().createContextualFragment(
                 `<div class="description">
@@ -60,6 +69,7 @@ export class MapDescriptionAction extends BuilderAction {
         );
     }
     clean({ editingElement }) {
+        log.pipeline("MapDescriptionAction clean");
         editingElement.querySelector(".description").remove();
     }
 }

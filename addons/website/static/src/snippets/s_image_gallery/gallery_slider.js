@@ -1,8 +1,11 @@
 /** @odoo-module native */
 import { isVisible } from "@html_editor/utils/dom_info";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Carousel } from "@web/libs/bootstrap";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.snippet.s_image_gallery.slider");
 
 /**
  * @deprecated
@@ -40,6 +43,13 @@ export class GallerySlider extends Interaction {
                 let indicatorParentEl = this.indicatorEl.parentElement;
                 while (indicatorParentEl) {
                     if (!isVisible(indicatorParentEl)) {
+                        log.logic(
+                            "setup: indicators hidden, measuring via parent",
+                            () => ({
+                                parent: indicatorParentEl.className,
+                                forcedDisplay: !indicatorParentEl.style.display,
+                            }),
+                        );
                         if (!indicatorParentEl.style.display) {
                             indicatorParentEl.style.display = "block";
                             indicatorWidth =
@@ -61,10 +71,18 @@ export class GallerySlider extends Interaction {
             this.realNbPerPage = this.nbPerPage || 1;
             this.nbPages = Math.ceil(this.liEls.length / this.realNbPerPage);
         }
+        log.lifecycle("setup", () => ({
+            hasCarousel: !!this.carouselEl,
+            hasIndicators: !!this.indicatorEl,
+            indicators: this.liEls?.length,
+            nbPerPage: this.nbPerPage,
+            nbPages: this.nbPages,
+        }));
         this.onSlidCarousel();
     }
 
     destroy() {
+        log.lifecycle("destroy: restoring indicator arrows");
         if (this.prevEl) {
             this.indicatorEl.prepend(this.prevEl);
         }
@@ -105,6 +123,11 @@ export class GallerySlider extends Interaction {
         }
         this.page += dispatchedEl.classList.contains("o_indicators_left") ? -1 : 1;
         this.page = Math.max(0, Math.min(this.nbPages - 1, this.page));
+        log.logic("onClickIndicator: page change", () => ({
+            page: this.page,
+            nbPages: this.nbPages,
+            hide: this.hideOnClickIndicator,
+        }));
         Carousel.getOrCreateInstance(this.carouselEl).to(
             this.page * this.realNbPerPage,
         );

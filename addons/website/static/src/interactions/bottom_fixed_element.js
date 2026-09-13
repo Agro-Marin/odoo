@@ -1,7 +1,10 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { isVisible, touching } from "@web/core/utils/dom/ui";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.bottom_fixed_element");
 
 export class BottomFixedElement extends Interaction {
     static selector = "#wrapwrap";
@@ -13,6 +16,9 @@ export class BottomFixedElement extends Interaction {
     };
 
     destroy() {
+        log.lifecycle("BottomFixedElement destroy: restore elements", () => ({
+            elements: this.el.querySelectorAll(".o_bottom_fixed_element").length,
+        }));
         this.restoreBottomFixedElements();
     }
 

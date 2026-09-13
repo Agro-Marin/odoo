@@ -1,10 +1,13 @@
 /** @odoo-module native */
 import { Plugin } from "@html_editor/plugin";
 import { withSequence } from "@html_editor/utils/resource";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { EditMenuDialog, MenuDialog } from "@website/components/dialog/edit_menu";
 
 import { NavbarLinkPopover } from "./navbar_link_popover/navbar_link_popover.js";
+
+const log = makeLogger("website.builder.plugin.menu_data_plugin");
 
 /**
  * @typedef { Object } MenuDataShared
@@ -33,6 +36,9 @@ export class MenuDataPlugin extends Plugin {
                     onClickEditLink: (elem, callback) => {
                         const menuEl =
                             elem.props.linkElement.querySelector("[data-oe-id]");
+                        log.lifecycle("MenuDialog open", () => ({
+                            menuId: menuEl.dataset.oeId,
+                        }));
                         this.services.dialog.add(MenuDialog, {
                             name: menuEl.textContent,
                             url: menuEl.parentElement.attributes["href"].nodeValue,
@@ -46,11 +52,19 @@ export class MenuDataPlugin extends Plugin {
                                     name,
                                     url,
                                 };
+                                const endSaveMenu = log.perf(
+                                    "MenuDialog save menu",
+                                    () => ({
+                                        websiteId,
+                                        id: data.id,
+                                    }),
+                                );
                                 const result = await this.services.orm.call(
                                     "website.menu",
                                     "save",
                                     [websiteId, { data: [data] }],
                                 );
+                                endSaveMenu();
                                 menuEl.parentElement.attributes["href"].nodeValue = url;
                                 menuEl.textContent = name;
                                 callback();
@@ -66,11 +80,13 @@ export class MenuDataPlugin extends Plugin {
     };
 
     setup() {
+        log.lifecycle("setup");
         this.websiteService = this.services.website;
     }
 
     openEditMenu(linkEl) {
         if (this.isEditMenuOpening) {
+            log.logic("openEditMenu skip: dialog already opening");
             return Promise.resolve();
         }
         this.isEditMenuOpening = true;
@@ -78,13 +94,21 @@ export class MenuDataPlugin extends Plugin {
             const rootID = parseInt(
                 linkEl?.closest("[data-content_menu_id]")?.dataset.content_menu_id,
             );
+            log.lifecycle("EditMenuDialog open", () => ({ rootID }));
             this.services.dialog.add(
                 EditMenuDialog,
                 {
                     rootID: isNaN(rootID) ? null : rootID,
                     save: async (newPageUrl) => {
+                        const endSave = log.perf("EditMenuDialog save page");
                         await this.dependencies.savePlugin.save();
+                        endSave();
+                        const endReload = log.perf("EditMenuDialog reload editor");
                         await this.config.reloadEditor();
+                        endReload();
+                        log.logic("EditMenuDialog save: redirect decision", {
+                            newPageUrl,
+                        });
                         if (newPageUrl) {
                             this.websiteService.goToWebsite({
                                 path: newPageUrl,
@@ -96,6 +120,7 @@ export class MenuDataPlugin extends Plugin {
                 },
                 {
                     onClose: () => {
+                        log.lifecycle("EditMenuDialog close");
                         this.isEditMenuOpening = false;
                         resolve();
                     },

@@ -1,9 +1,12 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { _t } from "@web/core/translation";
 import { Interaction } from "@web/public/interaction";
 import { generateVideoIframe } from "@website/js/content/generate_video_iframe";
 import { setupAutoplay, triggerAutoplay } from "@website/utils/videos";
+
+const log = makeLogger("website.interaction.media_video");
 
 export class MediaVideo extends Interaction {
     static selector = ".media_iframe_video";
@@ -35,6 +38,9 @@ export class MediaVideo extends Interaction {
 
     setup() {
         this.cookiesAccepted = this.el.dataset.needCookiesApproval !== "true";
+        log.lifecycle("MediaVideo setup", () => ({
+            cookiesAccepted: this.cookiesAccepted,
+        }));
     }
 
     start() {
@@ -45,6 +51,10 @@ export class MediaVideo extends Interaction {
                 this.el,
                 this.services.website_cookies.manageIframeSrc,
             );
+            log.logic("MediaVideo start: generated iframe", () => ({
+                generated: !!iframeEl,
+                src: this.el.dataset.oeExpression || this.el.dataset.src,
+            }));
         }
 
         if (iframeEl && !iframeEl.getAttribute("aria-label")) {
@@ -56,6 +66,10 @@ export class MediaVideo extends Interaction {
                 iframeEl.getAttribute("src"),
                 !!this.el.dataset.needCookiesApproval,
             );
+            log.logic("MediaVideo start: autoplay setup", () => ({
+                hasPromise: !!promise,
+                needCookiesApproval: !!this.el.dataset.needCookiesApproval,
+            }));
             if (promise) {
                 this.waitFor(promise).then(
                     this.bindDeferred(() => triggerAutoplay(iframeEl)),

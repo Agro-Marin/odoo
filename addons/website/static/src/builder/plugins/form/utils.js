@@ -1,6 +1,7 @@
 /** @odoo-module native */
 import { isSmallInteger } from "@html_builder/utils/utils";
 import { generateHTMLId } from "@html_builder/utils/utils_css";
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { _t } from "@web/core/translation";
 import { escape } from "@web/core/utils/format/strings";
 import { renderToElement } from "@web/core/utils/render";
@@ -11,6 +12,8 @@ export const VISIBILITY_DATASET = [
     "visibilityComparator",
     "visibilityBetween",
 ];
+
+const log = makeLogger("website.builder.plugin.form_utils");
 
 /**
  * @param {string} formId
@@ -91,6 +94,10 @@ export function getQuotesEncodedName(name) {
  * @returns {HTMLElement}
  */
 export function renderField(field, resetId = false) {
+    const endRender = log.perf("renderField", () => ({
+        name: field.name,
+        type: field.type,
+    }));
     if (!field.id) {
         field.id = generateHTMLId();
     }
@@ -140,6 +147,7 @@ export function renderField(field, resetId = false) {
             el.classList.add(field.formatInfo.offset);
         }
     });
+    endRender();
     return template.content.firstElementChild;
 }
 
@@ -284,6 +292,14 @@ export function replaceFieldElement(oldFieldEl, fieldEl) {
     const newFormInputEl = oldFieldEl.querySelector(".s_website_form_input");
     const newName = newFormInputEl.name;
     const newType = newFormInputEl.type;
+    log.logic("replaceFieldElement", () => ({
+        previousName,
+        newName,
+        previousType,
+        newType,
+        dependents: dependentFieldEls.length,
+        clearDependents: previousName !== newName || previousType !== newType,
+    }));
     if ((previousName !== newName || previousType !== newType) && dependentFieldEls) {
         for (const fieldEl of dependentFieldEls) {
             deleteConditionalVisibility(fieldEl);
@@ -325,6 +341,9 @@ export function getActiveField(fieldEl, { noRecords, fields } = {}) {
  * @param {HTMLElement} fieldEl
  */
 export function deleteConditionalVisibility(fieldEl) {
+    log.pipeline("deleteConditionalVisibility", () => ({
+        dependency: fieldEl.dataset.visibilityDependency,
+    }));
     for (const name of VISIBILITY_DATASET) {
         delete fieldEl.dataset[name];
     }
@@ -472,6 +491,10 @@ export function getListItems(fieldEl) {
  * @param {string} value
  */
 export function setVisibilityDependency(fieldEl, value) {
+    log.pipeline("setVisibilityDependency", () => ({
+        from: fieldEl.dataset.visibilityDependency,
+        to: value,
+    }));
     delete fieldEl.dataset.visibilityCondition;
     delete fieldEl.dataset.visibilityComparator;
     fieldEl.dataset.visibilityDependency = value;
@@ -483,6 +506,7 @@ export function setVisibilityDependency(fieldEl, value) {
  */
 export function rerenderField(fieldEl, fields) {
     const field = getActiveField(fieldEl, { fields });
+    log.pipeline("rerenderField", () => ({ name: field.name, type: field.type }));
     delete field.id;
     const newFieldEl = renderField(field);
     replaceFieldElement(fieldEl, newFieldEl);

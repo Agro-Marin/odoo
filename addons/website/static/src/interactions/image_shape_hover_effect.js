@@ -1,6 +1,9 @@
 /** @odoo-module native */
+import { makeLogger } from "@web/core/debug/debug_logger";
 import { registry } from "@web/core/registry";
 import { Interaction } from "@web/public/interaction";
+
+const log = makeLogger("website.interaction.image_shape_hover_effect");
 
 export class ImageShapeHoverEffect extends Interaction {
     static selector = "img[data-hover-effect]";
@@ -21,9 +24,19 @@ export class ImageShapeHoverEffect extends Interaction {
         });
         this.connectSourceObserver();
         this.adjustImageSourceFrom = this.bindDeferred(this.adjustImageSourceFrom);
+        log.lifecycle("ImageShapeHoverEffect setup: src observer attached", () => ({
+            hoverEffect: this.el.dataset.hoverEffect,
+            hasSrc: !!this.originalImgSrc,
+        }));
     }
 
     destroy() {
+        log.lifecycle(
+            "ImageShapeHoverEffect destroy: restore src, observer disconnected",
+            () => ({
+                hoverEffect: this.el.dataset.hoverEffect,
+            }),
+        );
         this.el.src = this.originalImgSrc;
         this.disconnectSourceObserver();
     }
@@ -41,20 +54,37 @@ export class ImageShapeHoverEffect extends Interaction {
 
     mouseEnter() {
         if (!this.originalImgSrc || !this.el.dataset.hoverEffect) {
+            log.logic("ImageShapeHoverEffect mouseEnter: skip", () => ({
+                hasSrc: !!this.originalImgSrc,
+                hoverEffect: this.el.dataset.hoverEffect,
+            }));
             return;
         }
         this.lastMouseEvent = this.lastMouseEvent.then(
             () =>
                 new Promise((resolve) => {
                     if (!this.svgInEl) {
+                        const endFetch = log.perf(
+                            "ImageShapeHoverEffect mouseEnter: fetch svg",
+                            () => ({
+                                src: this.el.src,
+                            }),
+                        );
                         fetch(this.el.src)
                             .then((response) => response.text())
                             .then((text) => {
+                                endFetch(() => ({ length: text.length }));
                                 const parser = new DOMParser();
                                 const result = parser.parseFromString(text, "text/xml");
                                 const svg = result.getElementsByTagName("svg")[0];
                                 this.svgInEl = svg;
                                 if (!this.svgInEl) {
+                                    log.logic(
+                                        "ImageShapeHoverEffect mouseEnter: response has no svg",
+                                        () => ({
+                                            src: this.el.src,
+                                        }),
+                                    );
                                     resolve();
                                     return;
                                 }
@@ -108,6 +138,7 @@ export class ImageShapeHoverEffect extends Interaction {
      */
     setImgSrc(svg, resolve) {
         if (this.isDestroyed) {
+            log.logic("ImageShapeHoverEffect setImgSrc: destroyed, drop");
             return;
         }
         const previousRandomClass = [...svg.classList].find((cl) =>
