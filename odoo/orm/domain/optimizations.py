@@ -733,6 +733,17 @@ def _get_domain_child_of(comodel: BaseModel, parent: str) -> Domain | OrderedSet
             DomainCondition("parent_path", "=like", path + "%") for path in paths
         )
     else:
+        parent_field = comodel._fields[parent]
+        if parent_field.is_many2one and parent_field.store:
+            query = comodel.env.backend.descendants(
+                comodel,
+                parent,
+                comodel.ids,
+                domain=Domain.TRUE,
+                step_domain=Domain.TRUE,
+            )
+            return OrderedSet(query.get_result_ids())
+        # a many2many or non-stored parent has no column to recurse over
         child_ids: OrderedSet[int] = OrderedSet()
         while comodel:
             child_ids.update(comodel._ids)

@@ -1100,60 +1100,24 @@ class IrUiView(models.Model):
             return self.browse()
         domain = self._get_domain_inheriting_views()
         query = self._search(domain)
-        where_clause = query.where_clause
         if query.from_clause != SQL.identifier("ir_ui_view"):
             raise ValueError(
                 "_get_domain_inheriting_views() must resolve against ir_ui_view alone: "
-                "the recursive CTE below inlines its WHERE clause and cannot carry a "
+                "the recursive closure below inlines its WHERE clause and cannot carry a "
                 f"join. Got: {query.from_clause}"
             )
-
+        closure = self.env.backend.descendants(
+            self,
+            "inherit_id",
+            self.ids,
+            domain=domain,
+            step_domain=Domain("mode", "=", "extension"),
+            same_columns=("model",),
+        )
+        closure.order = self._order_to_sql("priority, id", closure)
         field_names = self._get_fields_inheriting_views()
-        aliased_names = SQL(", ").join(
-            SQL(
-                "%s AS %s",
-                self._field_to_sql("ir_ui_view", name),
-                SQL.identifier(name),
-            )
-            for name in field_names
-        )
-
-        query = SQL(
-            """
-            WITH RECURSIVE ir_ui_view_inherits AS (
-                SELECT ir_ui_view.id, %(aliased_names)s
-                FROM ir_ui_view
-                WHERE id IN %(ids)s AND (%(where_clause)s)
-            UNION
-                SELECT ir_ui_view.id, %(aliased_names)s
-                FROM ir_ui_view
-                INNER JOIN ir_ui_view_inherits parent ON parent.id = ir_ui_view.inherit_id
-                WHERE coalesce(ir_ui_view.model, '') = coalesce(parent.model, '')
-                      AND ir_ui_view.mode = 'extension'
-                      AND (%(where_clause)s)
-            )
-            SELECT
-                v.id, %(field_names)s
-            FROM ir_ui_view_inherits as v
-            ORDER BY v.priority, v.id
-            """,
-            aliased_names=aliased_names,
-            field_names=SQL(", ").join(SQL.identifier("v", f) for f in field_names),
-            ids=tuple(self.ids),
-            where_clause=where_clause,
-        )
-
-        rows = self.env.execute_query(query)
-        _debug.perf.count("views_inheriting", roots=len(self.ids), rows=len(rows))
-        if not rows:
-            return self.browse()
-
-        ids, *columns = zip(*rows, strict=True)
-        views = self.browse(ids)
-
-        for fname, column in zip(field_names, columns, strict=True):
-            self._fields[fname]._insert_cache(views, column)
-
+        views = self._fetch_query(closure, [self._fields[name] for name in field_names])
+        _debug.perf.count("views_inheriting", roots=len(self.ids), rows=len(views))
         return views
 
     def _filter_loaded_views(

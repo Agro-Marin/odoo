@@ -1,0 +1,72 @@
+from odoo import fields, models
+from odoo.fields import Domain
+from odoo.orm.model_test_env import model_test_env
+
+
+class Node(models.Model):
+    _name = "d.node"
+    _module = "odoo.addons.test_descendants_harness"
+    _description = "Descendants node"
+
+    name = fields.Char()
+    kind = fields.Char()
+    parent_id = fields.Many2one("d.node")
+    active = fields.Boolean(default=True)
+
+
+def _tree(env) -> dict:
+    Nodes = env["d.node"]
+    root = Nodes.create({"name": "root", "kind": "a"})
+    child = Nodes.create({"name": "child", "kind": "a", "parent_id": root.id})
+    return {
+        "root": root,
+        "child": child,
+        "grand": Nodes.create({"name": "grand", "kind": "a", "parent_id": child.id}),
+        "other_kind": Nodes.create(
+            {"name": "other", "kind": "b", "parent_id": root.id}
+        ),
+        "inactive": Nodes.create(
+            {"name": "off", "kind": "a", "parent_id": root.id, "active": False}
+        ),
+        "stranger": Nodes.create({"name": "stranger", "kind": "a"}),
+    }
+
+
+def _ids(tree: dict, *names: str) -> set[int]:
+    return {tree[name].id for name in names}
+
+
+def test_descendants_walks_the_whole_tree_from_the_roots():
+    with model_test_env(Node) as env:
+        tree = _tree(env)
+        query = env.backend.descendants(
+            env["d.node"].with_context(active_test=False),
+            "parent_id",
+            [tree["root"].id],
+            domain=Domain.TRUE,
+            step_domain=Domain.TRUE,
+        )
+        assert set(query.get_result_ids()) == _ids(
+            tree, "root", "child", "grand", "other_kind", "inactive"
+        )
+
+
+def test_descendants_applies_the_domain_the_step_domain_and_same_columns():
+    with model_test_env(Node) as env:
+        tree = _tree(env)
+        query = env.backend.descendants(
+            env["d.node"].with_context(active_test=False),
+            "parent_id",
+            [tree["root"].id, tree["stranger"].id],
+            domain=Domain("active", "=", True),
+            step_domain=Domain("name", "!=", "grand"),
+            same_columns=("kind",),
+        )
+        assert set(query.get_result_ids()) == _ids(tree, "root", "child", "stranger")
+
+
+def test_child_of_uses_the_closure_on_a_model_without_parent_store():
+    with model_test_env(Node) as env:
+        tree = _tree(env)
+        found = env["d.node"].search([("id", "child_of", tree["root"].id)])
+        assert set(found.ids) == _ids(tree, "root", "child", "grand", "other_kind")

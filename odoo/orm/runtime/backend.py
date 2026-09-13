@@ -340,7 +340,7 @@ class PostgresColumnStore:
             return
         table = SQL.identifier(model._table).code
         column_sql = SQL.identifier(column).code
-        model.env.cr.executemany(
+        model.env.cr.executemany(  # noqa: E8501  both names are SQL.identifier().code; executemany takes no SQL params
             f"UPDATE {table} SET {column_sql} = %s WHERE id = %s",
             [(value, id_) for id_, value in rows],
         )
@@ -416,6 +416,17 @@ class StorageBackend(typing.Protocol):
     ) -> Query: ...
 
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query: ...
+
+    def descendants(
+        self,
+        model: BaseModel,
+        parent_field: str,
+        root_ids: typing.Collection[int],
+        *,
+        domain: Domain,
+        step_domain: Domain,
+        same_columns: typing.Sequence[str] = (),
+    ) -> Query: ...
 
     def get_existing_ids(
         self, model: BaseModel, ids: typing.Iterable[int]
@@ -518,6 +529,19 @@ def _prepare_postgres_search_query(
     prof.stop("query")
     prof.report(_orm_read, "_search %s", model._name)
     return query
+
+
+def _single_table_where(model: BaseModel, domain: Domain) -> SQL | None:
+    if domain.is_true():
+        return None
+    query = model._search(domain)
+    if query.from_clause != SQL.identifier(model._table):
+        raise ValueError(
+            f"descendants({model._name}): the domain must resolve against "
+            f"{model._table} alone, the recursive query inlines its WHERE clause "
+            f"and cannot carry a join. Got: {query.from_clause}"
+        )
+    return query.where_clause if query._where_clauses else None
 
 
 class PostgresBackend:
@@ -862,6 +886,53 @@ class PostgresBackend:
     def as_query(self, model: BaseModel, ordered: bool = True) -> Query:
         query = Query(model.env, model._table, model._table_sql)
         query.set_result_ids(model._ids, ordered)
+        return query
+
+    def descendants(
+        self,
+        model: BaseModel,
+        parent_field: str,
+        root_ids: typing.Collection[int],
+        *,
+        domain: Domain,
+        step_domain: Domain,
+        same_columns: typing.Sequence[str] = (),
+    ) -> Query:
+        table = SQL.identifier(model._table)
+        base_where = _single_table_where(model, domain)
+        step_where = _single_table_where(model, domain & step_domain)
+        columns = SQL(", ").join(
+            SQL(", %s", SQL.identifier(model._table, column)) for column in same_columns
+        )
+        same = SQL("").join(
+            SQL(
+                " AND COALESCE(%s::text, '') = COALESCE(parent.%s::text, '')",
+                SQL.identifier(model._table, column),
+                SQL.identifier(column),
+            )
+            for column in same_columns
+        )
+        closure = SQL(
+            """WITH RECURSIVE closure AS (
+                SELECT %(id)s%(columns)s FROM %(table)s
+                WHERE %(id)s = ANY(%(roots)s)%(base_where)s
+            UNION
+                SELECT %(id)s%(columns)s FROM %(table)s
+                JOIN closure parent ON parent.id = %(parent)s
+                WHERE TRUE%(step_where)s%(same)s
+            )
+            SELECT id FROM closure""",
+            id=SQL.identifier(model._table, "id"),
+            columns=columns,
+            table=table,
+            roots=list(root_ids),
+            base_where=SQL(" AND (%s)", base_where) if base_where else SQL(),
+            parent=SQL.identifier(model._table, parent_field),
+            step_where=SQL(" AND (%s)", step_where) if step_where else SQL(),
+            same=same,
+        )
+        query = Query(model.env, model._table, model._table_sql)
+        query.add_where(SQL("%s IN (%s)", SQL.identifier(model._table, "id"), closure))
         return query
 
     def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
@@ -1411,6 +1482,43 @@ class InMemoryBackend:
         query = Query(model.env, model._table, model._table_sql)
         query._ids = tuple(model._ids)
         return query
+
+    def descendants(
+        self,
+        model: BaseModel,
+        parent_field: str,
+        root_ids: typing.Collection[int],
+        *,
+        domain: Domain,
+        step_domain: Domain,
+        same_columns: typing.Sequence[str] = (),
+    ) -> Query:
+        from ..domain import Domain
+
+        found: OrderedSet[int] = OrderedSet(
+            model._search(domain & Domain("id", "in", list(root_ids))).get_result_ids()
+        )
+        frontier = list(found)
+        while frontier:
+            parents = model.browse(frontier)
+            children = model.browse(
+                model._search(
+                    domain & step_domain & Domain(parent_field, "in", frontier)
+                ).get_result_ids()
+            )
+            parent_values = {
+                parent.id: tuple(parent[column] or "" for column in same_columns)
+                for parent in parents
+            }
+            frontier = [
+                child.id
+                for child in children
+                if child.id not in found
+                and tuple(child[column] or "" for column in same_columns)
+                == parent_values[child[parent_field].id]
+            ]
+            found.update(frontier)
+        return self.as_query(model.browse(list(found)), ordered=False)
 
     def get_existing_ids(self, model: BaseModel, ids: typing.Iterable[int]) -> set[int]:
         return set(self.storage.get_existing_ids(model._table, list(ids)))

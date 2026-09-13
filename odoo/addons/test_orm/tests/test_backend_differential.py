@@ -704,8 +704,11 @@ class TestBackendDifferential(TransactionCase):
         with model_test_env(registry=registry) as env_a:
             with self.assertRaises(InMemorySqlNotSupported):
                 env_a.cr.rollback()
-            with self.assertRaises(InMemorySqlNotSupported):
-                env_a.cr.savepoint()
+            # a savepoint snapshots the dict storage; both backends forget "temp"
+            sp_a = env_a.cr.savepoint()
+            env_a["test_orm.foo"].create({"name": "temp"})
+            sp_a.close(rollback=True)
+            self.assertFalse(env_a["test_orm.foo"].search([("name", "=", "temp")]))
         F = self.env["test_orm.foo"]
         sp = self.env.cr.savepoint()
         F.create({"name": "temp"})

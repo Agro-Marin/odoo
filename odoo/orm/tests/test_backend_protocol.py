@@ -8,7 +8,7 @@ from odoo.orm.runtime.backend import InMemoryBackend, StorageBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 _MIXINS_DIR = _ORM_DIR / "models" / "mixins"
-_DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields")
+_DISPATCH_DIRS = (_MIXINS_DIR, _ORM_DIR / "fields", _ORM_DIR / "domain")
 
 _CAPABILITY_MEMBERS = {
     "supports_parent_store",
