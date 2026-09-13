@@ -359,17 +359,18 @@ class TestKarmaTrackingCommon(common.TransactionCase):
         user._add_karma(38)
         self.assertEqual(user.karma, 70)
         self.assertEqual(len(user.karma_tracking_ids), 2)
-        self.assertEqual(user.karma_tracking_ids[1].old_value, 32)
-        self.assertEqual(user.karma_tracking_ids[1].new_value, 70)
-        self.assertIn(_("Add Manually"), user.karma_tracking_ids[1].reason)
-        self.assertIn(self.test_user.display_name, user.karma_tracking_ids[1].reason)
-        self.assertIn(str(self.test_user.id), user.karma_tracking_ids[1].reason)
-        self.assertEqual(user.karma_tracking_ids[0].old_value, 0)
-        self.assertEqual(user.karma_tracking_ids[0].new_value, 32)
+        latest = user.karma_tracking_ids.sorted("id")[1]
+        self.assertEqual(latest.old_value, 32)
+        self.assertEqual(latest.new_value, 70)
+        self.assertIn(_("Add Manually"), latest.reason)
+        self.assertIn(self.test_user.display_name, latest.reason)
+        self.assertIn(str(self.test_user.id), latest.reason)
+        self.assertEqual(user.karma_tracking_ids.sorted("id")[0].old_value, 0)
+        self.assertEqual(user.karma_tracking_ids.sorted("id")[0].new_value, 32)
 
         user._add_karma(69, user, _("Test Reason"))
         self.assertEqual(len(user.karma_tracking_ids), 3)
-        self.assertIn(_("Test Reason"), user.karma_tracking_ids[2].reason)
+        self.assertIn(_("Test Reason"), user.karma_tracking_ids.sorted("id")[2].reason)
         self.assertEqual(user.karma, 139)
 
         # add manually karma to a user (e.g. from the technical view)
@@ -386,7 +387,7 @@ class TestKarmaTrackingCommon(common.TransactionCase):
 
         # write directly on the karma field, should generate <gamification.karma.tracking>
         self.test_user_2.karma = 100  # won't change
-        last_tracking_3 = self.test_user_2.karma_tracking_ids[-1]
+        last_tracking_3 = self.test_user_2.karma_tracking_ids.sorted("id")[-1]
 
         users = (user | self.test_user | self.test_user_2).with_user(self.test_user)
         # A direct ``karma`` write now recomputes rank_id/next_rank_id (and fires
@@ -395,9 +396,9 @@ class TestKarmaTrackingCommon(common.TransactionCase):
         with self.assertQueryCount(23):
             users.karma = 100
 
-        tracking_1 = user.karma_tracking_ids[-1]
-        tracking_2 = self.test_user.karma_tracking_ids[-1]
-        tracking_3 = self.test_user_2.karma_tracking_ids[-1]
+        tracking_1 = user.karma_tracking_ids.sorted("id")[-1]
+        tracking_2 = self.test_user.karma_tracking_ids.sorted("id")[-1]
+        tracking_3 = self.test_user_2.karma_tracking_ids.sorted("id")[-1]
 
         self.assertEqual(user.karma, 100)
         self.assertEqual(self.test_user.karma, 100)
