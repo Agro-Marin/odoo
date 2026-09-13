@@ -4,6 +4,7 @@ import json
 import typing
 import uuid
 from collections import abc, defaultdict
+from collections.abc import Sequence
 from collections.abc import Set as AbstractSet
 from datetime import date, datetime
 from operator import attrgetter
@@ -381,6 +382,32 @@ class Properties(Field):
                     record.display_name  # noqa: B018  the read IS the access check suppress() catches
 
         return res_ids_per_model
+
+    @override
+    def create(self, record_values: Sequence[tuple[BaseModel, typing.Any]]) -> None:
+        # the row and the cache already carry the value: only a definition change
+        # still has work to do after the insert
+        definition_writes = [
+            (record, value)
+            for record, value in record_values
+            if isinstance(value, list)
+            and any(
+                isinstance(definition, dict)
+                and (
+                    definition.get("definition_changed")
+                    or definition.get("definition_deleted")
+                )
+                for definition in value
+            )
+        ]
+        _debug.logic(
+            "field.properties.create",
+            model=self.model_name,
+            field=self.name,
+            records=len(record_values),
+            definition_writes=len(definition_writes),
+        )
+        super().create(definition_writes)
 
     @override
     def mark_dirty(self, records: BaseModel, value: typing.Any) -> None:
