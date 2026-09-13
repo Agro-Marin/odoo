@@ -7,7 +7,6 @@ from hashlib import sha256
 from markupsafe import escape as markup_escape
 
 from odoo.libs.debug_log import DebugLog
-from odoo.tools import SQL
 from odoo.tools.misc import SENTINEL, OrderedSet
 
 from ..primitives import NewId
@@ -127,28 +126,28 @@ def get_translation_dictionary(
     return dictionary
 
 
+def _as_translations(value: typing.Any) -> dict[str, str] | None:
+    if value is None:
+        return None
+    if isinstance(value, dict):
+        return value
+    return {"en_US": value}
+
+
 def get_stored_translations(
     field: BaseString, record: ModelLike
 ) -> dict[str, str] | None:
     record.flush_recordset([field.name])
-    cr = record.env.cr
-    cr.execute(
-        SQL(
-            "SELECT %s FROM %s WHERE id = %s",
-            SQL.identifier(field.name),
-            SQL.identifier(record._table),
-            record.id,
-        )
-    )
-    res = cr.fetchone()
+    stored = record.env.backend.columns.read(record, field.name, [record.id])
+    res = _as_translations(stored.get(record.id))
     _debug.perf.count(
         "field.translate.stored_translations_read",
         model=field.model_name,
         field=field.name,
         record=record.id,
-        langs=len(res[0]) if res and res[0] else 0,
+        langs=len(res) if res else 0,
     )
-    return res[0] if res else None
+    return res
 
 
 def get_stored_translations_multi(
@@ -157,15 +156,7 @@ def get_stored_translations_multi(
     pending = records.filtered(lambda rec: rec.id in (dirty_ids or ()))
     if pending:
         pending.flush_recordset([field.name])
-    cr = records.env.cr
-    cr.execute(
-        SQL(
-            "SELECT id, %s FROM %s WHERE id IN %s",
-            SQL.identifier(field.name),
-            SQL.identifier(records._table),
-            tuple(records._ids),
-        )
-    )
+    stored = records.env.backend.columns.read(records, field.name, records._ids)
     _debug.perf.count(
         "field.translate.stored_translations_read_multi",
         model=field.model_name,
@@ -173,7 +164,7 @@ def get_stored_translations_multi(
         records=len(records),
         flushed=len(pending),
     )
-    return dict(cr.fetchall())
+    return {id_: _as_translations(value) for id_, value in stored.items()}
 
 
 def edit_translations_value(

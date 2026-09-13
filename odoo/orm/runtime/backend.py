@@ -299,8 +299,80 @@ class InMemorySequenceStore:
 
 
 @typing.runtime_checkable
+class ColumnStore(typing.Protocol):
+    def read(
+        self, model: BaseModel, column: str, ids: typing.Collection[int]
+    ) -> dict[int, typing.Any]: ...
+
+    def write(
+        self,
+        model: BaseModel,
+        column: str,
+        rows: typing.Collection[tuple[int, typing.Any]],
+    ) -> None: ...
+
+
+class PostgresColumnStore:
+    __slots__ = ()
+
+    def read(
+        self, model: BaseModel, column: str, ids: typing.Collection[int]
+    ) -> dict[int, typing.Any]:
+        if not ids:
+            return {}
+        rows = model.env.execute_query(
+            SQL(
+                "SELECT id, %s FROM %s WHERE id = ANY(%s)",
+                SQL.identifier(column),
+                SQL.identifier(model._table),
+                list(ids),
+            )
+        )
+        return dict(rows)
+
+    def write(
+        self,
+        model: BaseModel,
+        column: str,
+        rows: typing.Collection[tuple[int, typing.Any]],
+    ) -> None:
+        if not rows:
+            return
+        table = SQL.identifier(model._table).code
+        column_sql = SQL.identifier(column).code
+        model.env.cr.executemany(
+            f"UPDATE {table} SET {column_sql} = %s WHERE id = %s",
+            [(value, id_) for id_, value in rows],
+        )
+
+
+class InMemoryColumnStore:
+    __slots__ = ("storage",)
+
+    def __init__(self, storage: DictBackend):
+        self.storage = storage
+
+    def read(
+        self, model: BaseModel, column: str, ids: typing.Collection[int]
+    ) -> dict[int, typing.Any]:
+        rows = self.storage.get_rows(model._table, list(ids))
+        return {id_: row.get(column) for id_, row in rows.items()}
+
+    def write(
+        self,
+        model: BaseModel,
+        column: str,
+        rows: typing.Collection[tuple[int, typing.Any]],
+    ) -> None:
+        self.storage.update_rows(
+            model._table, [(id_, {column: value}) for id_, value in rows]
+        )
+
+
+@typing.runtime_checkable
 class StorageBackend(typing.Protocol):
     sequences: SequenceStore
+    columns: ColumnStore
 
     supports_parent_store: bool
     supports_record_rules: bool
@@ -450,6 +522,7 @@ def _prepare_postgres_search_query(
 
 class PostgresBackend:
     sequences: SequenceStore = PostgresSequenceStore()
+    columns: ColumnStore = PostgresColumnStore()
 
     supports_parent_store: bool = True
 
@@ -1147,11 +1220,12 @@ class InMemoryBackend:
 
     supports_translation_terms: bool = False
 
-    __slots__ = ("sequences", "storage")
+    __slots__ = ("columns", "sequences", "storage")
 
     def __init__(self, storage: DictBackend):
         self.storage = storage
         self.sequences: SequenceStore = InMemorySequenceStore(storage)
+        self.columns: ColumnStore = InMemoryColumnStore(storage)
 
     def create_rows(
         self,

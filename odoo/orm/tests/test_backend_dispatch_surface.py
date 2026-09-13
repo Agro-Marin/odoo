@@ -8,11 +8,6 @@ from odoo.orm.runtime.backend import InMemoryBackend
 
 _ORM_DIR = pathlib.Path(__file__).resolve().parent.parent
 
-# Every place the ORM chooses between the SQL path and env.backend. The surface
-# has grown to fifteen sites across nine files
-# -- including four in Layer 1, where a field reaches the backend directly
-# rather than through a model mixin. Each entry says what the in-memory branch
-# does NOT do, so a site marked LOSSY is a known gap, not an oversight.
 DISPATCH_SITES: dict[tuple[str, str], str] = {
     ("models/mixins/create.py", "_create"): (
         "in-memory path skips the COPY fast path (performance only)"
@@ -63,6 +58,15 @@ DISPATCH_SITES: dict[tuple[str, str], str] = {
         "column to compare against and returns {} unconditionally, so on that "
         "backend no translation ever follows a write.  A DB-free test of "
         "translation propagation therefore cannot fail for the right reason"
+    ),
+    ("fields/_field_translation.py", "get_stored_translations"): (
+        "equivalent: both branches read the stored column through "
+        "backend.columns; the in-memory store may hold a plain string, which "
+        "is wrapped as {'en_US': value}"
+    ),
+    ("fields/_field_translation.py", "get_stored_translations_multi"): (
+        "equivalent: one read of the stored column for every record through "
+        "backend.columns, same wrapping as the single-record read"
     ),
 }
 

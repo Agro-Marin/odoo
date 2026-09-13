@@ -621,8 +621,8 @@ class ResUsers(models.Model):
         if not self:
             return
         self.flush_recordset(["password"])
-        self.env.cr.execute(
-            "UPDATE res_users SET password=NULL WHERE id = ANY(%s)", (self.ids,)
+        self.env.backend.columns.write(
+            self.sudo(), "password", [(uid, None) for uid in self.ids]
         )
         self.invalidate_recordset(["password"])
         self._invalidate_session_tokens()
@@ -638,10 +638,7 @@ class ResUsers(models.Model):
             msg = "Refusing to store a plaintext password — encrypt first."
             raise ValueError(msg)
 
-        self.env.cr.executemany(
-            "UPDATE res_users SET password=%s WHERE id=%s",
-            [(pw, uid) for uid, pw in hashed],
-        )
+        self.env.backend.columns.write(self.sudo(), "password", hashed)
         self.browse([uid for uid, _pw in hashed]).invalidate_recordset(["password"])
         self._invalidate_session_tokens()
 
@@ -668,14 +665,10 @@ class ResUsers(models.Model):
                     all _check_credentials environments"
                 )
 
-            self.env.cr.execute(
-                "SELECT COALESCE(password, '') FROM res_users WHERE id=%s",
-                [self.id],
-            )
-            row = self.env.cr.fetchone()
-            if row is None:
+            stored = self.env.backend.columns.read(self.sudo(), "password", [self.id])
+            if self.id not in stored:
                 raise AccessDenied
-            [hashed] = row
+            hashed = stored[self.id] or ""
             valid, replacement = self._get_crypt_context().match_and_update(
                 credential["password"], hashed
             )

@@ -17,7 +17,7 @@ _CAPABILITY_MEMBERS = {
     "supports_column_scan",
     "supports_translation_terms",
 }
-_ATTRIBUTE_MEMBERS = _CAPABILITY_MEMBERS | {"sequences"}
+_ATTRIBUTE_MEMBERS = _CAPABILITY_MEMBERS | {"sequences", "columns"}
 
 
 def _protocol_methods() -> set[str]:
