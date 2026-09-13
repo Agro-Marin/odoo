@@ -279,6 +279,35 @@ describe("Add & Delete buttons", () => {
         expect(".options-container table tbody tr:first td").toHaveCount(2);
         expect(data.datasets[0].label).toBe("Two");
     });
+    test("Deleting the first column of a chart without dataset keys deletes that column", async () => {
+        const type = "bar";
+        const data = getData(type);
+        data.datasets.forEach((dataset) => delete dataset.key);
+        await setupWebsiteBuilder(chartTemplate(type, data));
+        await contains(":iframe .s_chart").click();
+        await contains(
+            ".options-container table [data-action-id=removeColumn]:first",
+        ).click();
+        const newData = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
+        expect(newData.datasets).toHaveLength(1);
+        expect(newData.datasets[0].label).toBe("Two");
+    });
+    test("Editing a value of a chart without dataset keys updates that value", async () => {
+        const type = "bar";
+        const data = getData(type);
+        data.datasets.forEach((dataset) => delete dataset.key);
+        await setupWebsiteBuilder(chartTemplate(type, data));
+        await contains(":iframe .s_chart").click();
+        expect(
+            ".options-container table [data-action-id=updateDatasetValue]:first input",
+        ).toHaveValue("25");
+        await contains(
+            ".options-container table [data-action-id=updateDatasetValue]:first input",
+        ).edit("42");
+        const newData = JSON.parse(queryFirst(":iframe .s_chart").dataset.data);
+        expect(newData.datasets[0].data[0]).toBe("42");
+        expect(newData.datasets[1].data[0]).toBe("10");
+    });
     test("Cannot delete column if there is only 1 dataset", async () => {
         await setupWebsiteBuilder(
             chartTemplate("bar", {

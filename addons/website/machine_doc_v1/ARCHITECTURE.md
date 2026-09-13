@@ -135,7 +135,7 @@ Top-level layout (detailed maps are separate docs):
 | `models/` | 45 `.py` — 63 model classes (website, mixins, pages/menus, framework extensions, themes, visitors) | `MODEL_MAP.md` |
 | `wizards/` | 4 `.py` + XML — transient wizards (robots, blocked domains, language install, portal) | `MODEL_MAP.md` |
 | `static/src/` | 346 JS across 142 directories (two runtimes) | `DIRECTORY_MAP.md` |
-| `static/tests/` | 218 `.js` (HOOT suites + 86 tours) | `TEST_TAGS.md` |
+| `static/tests/` | 219 `.js` (HOOT suites + 86 tours) | `TEST_TAGS.md` |
 | `tests/` | 49 Python test files | `TEST_TAGS.md` |
 | `views/` · `data/` · `security/` · `i18n/` | QWeb templates, ~66 `s_*` snippet templates, fixtures, ACLs, translations | — |
 | `doc/` | `website.snippet.rst` (snippet authoring guide) | — |

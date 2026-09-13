@@ -2,7 +2,7 @@
 
 Quick reference for running targeted subsets of `website`'s tests. Two surfaces:
 **Python** (`tests/`, 49 `.py` files = 48 test modules incl. `common.py`, + `__init__.py`)
-run through `odoo-bin`; **JS/HOOT + tours** (`static/tests/`, 218 `.js`) run in
+run through `odoo-bin`; **JS/HOOT + tours** (`static/tests/`, 219 `.js`) run in
 the browser test runner.
 
 > Unlike the `web` module, website does **not** define a rich `web_*`-style tag
@@ -90,7 +90,7 @@ used nowhere** — all browser interaction goes through `start_tour`.
 
 ## JS / HOOT & Tours (`static/tests/`)
 
-218 `.js` files. Tour *definitions* live under `static/tests/tours/` (86 files)
+219 `.js` files. Tour *definitions* live under `static/tests/tours/` (86 files)
 and are registered into `registry.category("web_tour.tours")`, then launched by
 the Python `start_tour` calls above. HOOT suites (`*.test.js`) run in the JS test
 runner (`/web/tests`), not via `--test-tags`.

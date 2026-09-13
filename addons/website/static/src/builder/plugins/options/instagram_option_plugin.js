@@ -11,6 +11,8 @@ import { _t } from "@web/core/translation";
 
 const log = makeLogger("website.builder.plugin.instagram_option");
 
+const INSTAGRAM_URL_MARKER = "instagram.com/";
+
 /**
  * @typedef { Object } InstagramOptionShared
  * @property { InstagramOptionPlugin['instagramPageNameFromUrl'] } instagramPageNameFromUrl
@@ -34,11 +36,6 @@ class InstagramOptionPlugin extends Plugin {
         },
         normalize_handlers: this.normalize.bind(this),
     };
-
-    setup() {
-        this.instagramUrlStr = "instagram.com/";
-        log.lifecycle("InstagramOptionPlugin setup");
-    }
 
     normalize(root) {
         const nodes = [
@@ -115,7 +112,7 @@ class InstagramOptionPlugin extends Plugin {
      * @returns {string|undefined}
      */
     instagramPageNameFromUrl(url) {
-        const pageName = url.split(this.instagramUrlStr)[1];
+        const pageName = url.split(INSTAGRAM_URL_MARKER)[1];
         if (
             !pageName ||
             pageName.includes("?") ||
@@ -138,9 +135,8 @@ export class InstagramPageAction extends BuilderAction {
         delete editingElement.dataset.instagramPageIsDefault;
         log.logic("InstagramPageAction apply", () => ({
             value,
-            urlMarker: this.instagramUrlStr,
         }));
-        if (value.includes(this.instagramUrlStr)) {
+        if (value.includes(INSTAGRAM_URL_MARKER)) {
             value =
                 this.dependencies.instagramOption.instagramPageNameFromUrl(value) || "";
         }

@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, test } from "@odoo/hoot";
 import {
     animationFrame,
     click,
+    freezeTime,
     hover,
     leave,
     manuallyDispatchProgrammaticEvent,
@@ -140,6 +141,17 @@ describe("close popup", () => {
         expect(modal).toBeVisible();
         await click(".btn-primary.o_website_form_send");
         expect(modal).toBeVisible();
+    });
+
+    test("destroying the popup while it is still showing does not throw later", async () => {
+        freezeTime();
+        const { core } = await startInteractions(getPopupTemplate({ showAfter: 1000 }));
+        expect(core.interactions).toHaveLength(1);
+        await advanceTime(1000);
+        expect(modal).toBeVisible();
+        core.stopInteractions();
+        await advanceTime(100);
+        expect(modal).not.toBeVisible();
     });
 
     test("close popup by clicking outside the modal", async () => {
