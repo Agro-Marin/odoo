@@ -7,6 +7,7 @@ from dateutil.relativedelta import relativedelta
 from odoo import _, api, fields, models
 from odoo.exceptions import UserError
 from odoo.libs.datetime import localize_standard, timezone
+from odoo.libs.debug_log import DebugLog
 
 from odoo.addons.base.models.mixin_recurrence_anchored import WEEKDAY_SELECTION
 from odoo.addons.base.models.mixin_recurrence_rule import (
@@ -14,6 +15,8 @@ from odoo.addons.base.models.mixin_recurrence_rule import (
     REPEAT_TYPE_SELECTION,
 )
 from odoo.addons.base.models.res_partner import _selection_timezones
+
+_debug = DebugLog(__name__)
 
 REPEAT_TYPE_SELECTION_RRULE = [*REPEAT_TYPE_SELECTION, REPEAT_TYPE_COUNT]
 
@@ -289,12 +292,25 @@ class MixinRecurrenceRrule(models.AbstractModel):
         for recurrence in self:
             current_rule = recurrence._rrule_serialize()
             if recurrence.rrule != current_rule:
+                _debug.lifecycle(
+                    "recurrence.rrule_changed",
+                    record=recurrence.id,
+                    unit=recurrence.repeat_unit,
+                    interval=recurrence.repeat_interval,
+                    repeat_type=recurrence.repeat_type,
+                    had_rule=bool(recurrence.rrule),
+                )
                 recurrence.rrule = current_rule
 
     def _inverse_rrule(self):
         for recurrence in self:
             if recurrence.rrule:
                 values = self._rrule_parse(recurrence.rrule, recurrence.dtstart)
+                _debug.pipeline(
+                    "recurrence.rrule_inverse",
+                    record=recurrence.id,
+                    keys=",".join(sorted(values)),
+                )
                 recurrence.with_context(dont_notify=True).write(values)
 
     def _rrule_serialize(self):
@@ -314,6 +330,7 @@ class MixinRecurrenceRrule(models.AbstractModel):
             )
 
         if not self.repeat_unit:
+            _debug.logic("recurrence.serialize.empty", record=self.id)
             return ""
         return self._rrule_value(str(self._get_rrule(bounded=False)))
 
@@ -340,13 +357,27 @@ class MixinRecurrenceRrule(models.AbstractModel):
         # RRULE:FREQ=MONTHLY;INTERVAL=3;X-RELATIVE=1
         # RRULE;X-EVOLUTION-ENDDATE=20200120:FREQ=WEEKLY;COUNT=3;BYDAY=MO
         # X-EVOLUTION-ENDDATE=20200120:FREQ=WEEKLY;COUNT=3;BYDAY=MO
+        stripped = len(rule_str)  # debuglog
         rule_str = (
             re.sub(r";?X-[-\w]+=[^;:]*", "", rule_str).replace(":;", ":").lstrip(":;")
         )
+        stripped -= len(rule_str)  # debuglog
 
         if "Z" in rule_str and date_start and not date_start.tzinfo:
             date_start = date_start.replace(tzinfo=UTC)
         rule = rrule.rrulestr(rule_str, dtstart=date_start)
+        _debug.logic(
+            "recurrence.rrule_parsed",
+            freq=rule._freq,
+            interval=rule._interval,
+            count=rule._count,
+            until=rule._until is not None,
+            byweekday=len(rule._byweekday or ()),
+            bynweekday=len(rule._bynweekday or ()),
+            bymonthday=len(rule._bymonthday or ()),
+            x_stripped=stripped,
+            utc_marked="Z" in rule_str,
+        )
 
         data["repeat_unit"] = freq_to_select(rule._freq)
         data["repeat_number"] = rule._count
@@ -416,8 +447,17 @@ class MixinRecurrenceRrule(models.AbstractModel):
         original_count = self.repeat_type == "count" and self.repeat_number
         if original_count and len(ranges) < original_count:
             inflated_count = (2 * original_count) - len(ranges)
+            past = len(ranges)  # debuglog
             ranges = only_future(
                 self._get_ranges(start, duration, count=inflated_count)
+            )
+            _debug.logic(
+                "recurrence.ranges_inflated",
+                record=self.id,
+                wanted=original_count,
+                first_pass=past,
+                inflated_count=inflated_count,
+                got=len(ranges),
             )
         return ranges
 
@@ -434,9 +474,19 @@ class MixinRecurrenceRrule(models.AbstractModel):
         self.check_singleton()
         dtstart = self._get_start_of_period(dtstart)
         if self._is_allday():
+            _debug.logic(
+                "recurrence.occurrences", record=self.id, allday=True, count=count
+            )
             return self._get_rrule(dtstart=dtstart, count=count)
 
         tz = self._get_timezone()
+        _debug.logic(
+            "recurrence.occurrences",
+            record=self.id,
+            allday=False,
+            tz=str(tz),
+            count=count,
+        )
         dtstart = dtstart.replace(tzinfo=UTC).astimezone(tz)
         occurences = self._get_rrule(dtstart=dtstart.replace(tzinfo=None), count=count)
 

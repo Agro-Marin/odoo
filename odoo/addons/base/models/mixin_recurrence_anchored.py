@@ -5,9 +5,12 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import api, fields, models
 from odoo.exceptions import ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools.date_utils import Anchor, anchor_day, next_anchor, previous_anchor
 
 from odoo.addons.base.models.mixin_recurrence_interval import REPEAT_UNIT_SELECTION
+
+_debug = DebugLog(__name__)
 
 WEEKDAY_SELECTION = [
     ("MON", "Monday"),
@@ -91,9 +94,19 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                 and record.repeat_day
                 and record.repeat_month
             ):
-                record.repeat_day = self._clamp_day(
+                clamped = self._clamp_day(
                     record.repeat_day, record.repeat_month
-                )
+                )  # debuglog
+                if clamped != record.repeat_day:
+                    _debug.logic(
+                        "recurrence.anchor_day_clamped",
+                        record=record.id,
+                        field="repeat_day",
+                        month=record.repeat_month,
+                        day=record.repeat_day,
+                        clamped=clamped,
+                    )
+                record.repeat_day = clamped
 
     # The second anchor's default depends on the period: the middle of a month,
     # the first of a half-year. It is filled only once a second anchor exists,
@@ -108,10 +121,26 @@ class MixinRecurrenceAnchored(models.AbstractModel):
                 record.repeat_second_day = (
                     "15" if record.repeat_unit == "month" else "1"
                 )
+                _debug.logic(
+                    "recurrence.second_anchor_defaulted",
+                    record=record.id,
+                    unit=record.repeat_unit,
+                    day=record.repeat_second_day,
+                )
             elif record.repeat_unit == "year" and record.repeat_second_month:
-                record.repeat_second_day = self._clamp_day(
+                clamped = self._clamp_day(  # debuglog
                     record.repeat_second_day, record.repeat_second_month
                 )
+                if clamped != record.repeat_second_day:
+                    _debug.logic(
+                        "recurrence.anchor_day_clamped",
+                        record=record.id,
+                        field="repeat_second_day",
+                        month=record.repeat_second_month,
+                        day=record.repeat_second_day,
+                        clamped=clamped,
+                    )
+                record.repeat_second_day = clamped
 
     @api.constrains(
         "repeat_unit",
@@ -131,6 +160,14 @@ class MixinRecurrenceAnchored(models.AbstractModel):
             anchors = record._get_recurrence_anchors()
             first, second = map(record._get_boundary_in_reference_period, anchors)
             one_period = relativedelta(**{f"{record.repeat_unit}s": 1})
+            _debug.logic(
+                "recurrence.anchors_checked",
+                record=record.id,
+                unit=record.repeat_unit,
+                anchors=len(anchors),
+                last_day=any(anchor.last_day for anchor in anchors),
+                ordered=first < second,
+            )
             if any(anchor.last_day for anchor in anchors) and second in (
                 first,
                 first + one_period,

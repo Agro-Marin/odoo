@@ -4,6 +4,7 @@ import time
 
 from odoo import models, tools
 from odoo.libs.asset_log import get_asset_logger, log_event
+from odoo.libs.debug_log import DebugLog
 from odoo.modules import module as _module
 from odoo.tools.assets.esbuild_policy import EsbuildCircuit
 
@@ -11,6 +12,7 @@ _fallback_log = get_asset_logger("fallback")
 _lock_log = get_asset_logger("lock")
 
 _esbuild_circuit = EsbuildCircuit()
+_debug = DebugLog(__name__)
 
 
 class IrQweb(models.AbstractModel):
@@ -24,10 +26,14 @@ class IrQweb(models.AbstractModel):
         return self.env["ir.config_parameter"].sudo()
 
     def _is_esbuild_fail_closed(self) -> bool:
-        return self._get_esbuild_config().get_param_bool(
-            "web.esbuild.fail_closed",
-            bool(tools.config["test_enable"] or "assets" in tools.config["dev_mode"]),
+        default = bool(  # debuglog
+            tools.config["test_enable"] or "assets" in tools.config["dev_mode"]
         )
+        fail_closed = self._get_esbuild_config().get_param_bool(  # debuglog
+            "web.esbuild.fail_closed", default
+        )
+        _debug.logic("esbuild.fail_closed", value=fail_closed, default=default)
+        return fail_closed
 
     def _get_esbuild_bundles_forced_fallback(self) -> set[str]:
         forced_raw = self._get_esbuild_config().get_param(
@@ -39,9 +45,13 @@ class IrQweb(models.AbstractModel):
         return (self.env.cr.dbname, bundle)
 
     def _get_esbuild_circuit_state(self, bundle: str) -> tuple[bool, str]:
-        return _esbuild_circuit.state(
+        state = _esbuild_circuit.state(  # debuglog
             self._get_esbuild_cooldown_key(bundle), now=time.monotonic()
         )
+        _debug.logic(
+            "esbuild.circuit_state", bundle=bundle, open=state[0], reason=state[1]
+        )
+        return state
 
     def _open_esbuild_circuit(self, bundle: str, reason: str) -> None:
         config = self._get_esbuild_config()
@@ -82,6 +92,7 @@ class IrQweb(models.AbstractModel):
     @contextlib.contextmanager
     def _get_esbuild_lock_cursor(self, bundle: str):
         if self.env.cr.readonly and _module.current_test:
+            _debug.logic("esbuild.lock_cursor", bundle=bundle, mode="test_readonly")
             yield self.env.cr
             return
         try:
