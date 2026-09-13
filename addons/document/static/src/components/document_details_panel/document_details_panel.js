@@ -17,7 +17,6 @@ import {
     Component,
     onWillRender,
     onWillUpdateProps,
-    reactive,
     status,
     useState,
 } from "@odoo/owl";
@@ -174,7 +173,7 @@ export class DocumentsDetailsPanel extends Component {
  * @returns {Object}
  */
 function wrapAsDetailsPanelRecord(record) {
-    return new Proxy(reactive(record), {
+    return new Proxy(record, {
         get(target, prop, receiver) {
             return (
                 prop === "isDetailsPanelRecord" || Reflect.get(target, prop, receiver)
