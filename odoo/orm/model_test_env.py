@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING, Any, NoReturn, Self, cast
 
 from odoo.db import BaseCursor, FunctionStatus
 from odoo.libs.collections import Collector
+from odoo.libs.debug_log import DebugLog
 from odoo.libs.lru import LRU
 from odoo.tools import OrderedSet
 from odoo.tools.constants import REGISTRY_CACHES
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
     from .runtime.registry import Registry
 
 _logger = logging.getLogger("odoo.orm.model_test_env")
+_debug = DebugLog(__name__)
 
 
 class InMemorySqlNotSupported(NotImplementedError):
@@ -110,6 +112,7 @@ class InMemorySavepoint:
         self.name = f"memsp{cr._savepoint_depth}"
         self.closed = False
         cr._savepoint_depth += 1
+        _debug.lifecycle("test_env.savepoint.opened", name=self.name, flush=flush)
 
     def __enter__(self) -> Self:
         return self
@@ -120,6 +123,9 @@ class InMemorySavepoint:
     def rollback(self) -> None:
         if self.closed:
             raise RuntimeError(f'Savepoint "{self.name}" is already closed')
+        _debug.lifecycle(
+            "test_env.savepoint.rolled_back", name=self.name, flush=self._flush
+        )
         if self._flush:
             self._cr.clear()
         self._cr.storage.restore(self._snapshot)
@@ -162,7 +168,12 @@ class InMemoryCursor(BaseCursor):
         key = str(query)
         if key in self._fixtures:
             self._last_result = self._fixtures[key]
+            _debug.logic(
+                "test_env.sql_fixture_hit",
+                rows=len(self._last_result) if self._last_result else 0,
+            )
             return
+        _debug.logic("test_env.sql_unsupported", query=key[:120])
         raise InMemorySqlNotSupported(
             "InMemoryCursor (DB-free model_test_env) cannot execute raw SQL:\n"
             f"    {key}\n"
@@ -233,6 +244,7 @@ class InMemoryCursor(BaseCursor):
             )
         self.flush()
         self.commit_count += 1
+        _debug.lifecycle("test_env.commit", commits=self.commit_count)
         self.clear()
         self._now = None
         self.prerollback.clear()
@@ -496,6 +508,13 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                     ):
                         self.not_null_fields.add(field)
 
+        _debug.pipeline(
+            "test_env.registry_setup",
+            models=len(model_classes),
+            requested=len(model_defs),
+            degraded_fields=len(self.degraded_fields),
+            not_null_fields=len(self.not_null_fields),
+        )
         for model_cls in model_classes:
             try:
                 model_cls(env, (), ())._post_model_setup__()
@@ -528,6 +547,13 @@ class ModelRegistry(_RegistryFieldsMixin, Mapping):
                 )
                 field._setup_done = True
                 self.degraded_fields[field] = f"setup: {type(exc).__name__}: {exc}"
+                _debug.logic(
+                    "test_env.field_setup_degraded",
+                    model=model_cls._name,
+                    field=name,
+                    comodel=comodel,
+                    error=type(exc).__name__,
+                )
             else:
                 if field.is_many2one and field.company_dependent:
                     pool.many2one_company_dependents.add(

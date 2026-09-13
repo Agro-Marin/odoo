@@ -2,6 +2,10 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Any
 
+from odoo.libs.debug_log import DebugLog
+
+_debug = DebugLog(__name__)
+
 
 @dataclass(slots=True)
 class NamedSequence:
@@ -31,6 +35,13 @@ class DictBackend:
         self._named_sequences: dict[str, NamedSequence] = {}
 
     def snapshot(self) -> tuple:
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "storage.snapshot",
+                tables=len(self._tables),
+                rows=sum(len(rows) for rows in self._tables.values()),
+                sequences=len(self._named_sequences),
+            )
         return (
             {
                 table: {id_: dict(row) for id_, row in rows.items()}
@@ -45,6 +56,13 @@ class DictBackend:
 
     def restore(self, snapshot: tuple) -> None:
         tables, sequences, named = snapshot
+        if _debug.lifecycle.enabled:
+            _debug.lifecycle(
+                "storage.restore",
+                tables=len(tables),
+                rows=sum(len(rows) for rows in tables.values()),
+                sequences=len(named),
+            )
         self._tables = {
             table: {id_: dict(row) for id_, row in rows.items()}
             for table, rows in tables.items()

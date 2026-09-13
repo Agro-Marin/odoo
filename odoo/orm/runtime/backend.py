@@ -163,6 +163,9 @@ class PostgresSequenceStore:
     __slots__ = ()
 
     def create(self, env, name: str, *, increment: int, start: int) -> None:
+        _debug.lifecycle(
+            "backend.sequence.created", name=name, increment=increment, start=start
+        )
         env.cr.execute(
             SQL(
                 "CREATE SEQUENCE %s INCREMENT BY %s START WITH %s",
@@ -175,6 +178,7 @@ class PostgresSequenceStore:
     def drop(self, env, names: typing.Collection[str]) -> None:
         if not names:
             return
+        _debug.lifecycle("backend.sequence.dropped", sequences=len(names))
         identifiers = SQL(",").join(map(SQL.identifier, names))
         env.cr.execute(SQL("DROP SEQUENCE IF EXISTS %s RESTRICT", identifiers))
 
@@ -195,7 +199,14 @@ class PostgresSequenceStore:
             ("S", name),
         )
         if not env.cr.fetchone():
+            _debug.logic("backend.sequence.alter_missing", name=name)
             return
+        _debug.lifecycle(
+            "backend.sequence.altered",
+            name=name,
+            increment=increment,
+            restart=restart,
+        )
         env.cr.execute(
             SQL(
                 "ALTER SEQUENCE %s%s%s",
@@ -228,7 +239,13 @@ class PostgresSequenceStore:
             )
         )
         if not increments:
+            _debug.logic("backend.sequence.peek_none_found", requested=len(names))
             return {}
+        _debug.perf.count(
+            "backend.sequence.peek",
+            requested=len(names),
+            found=len(increments),
+        )
         reads = SQL(" UNION ALL ").join(
             SQL(
                 "SELECT %s AS name, last_value, is_called FROM %s",
@@ -568,8 +585,18 @@ class PostgresBackend:
             return None
         values = rows[0][1:]
         if not all(isinstance(value, _UNIFORM_UPDATE_TYPES) for value in values):
+            _debug.logic(
+                "backend.update_rows.uniform_rejected",
+                rows=len(rows),
+                reason="value_type",
+            )
             return None
         if any(row[1:] != values for row in rows):
+            _debug.logic(
+                "backend.update_rows.uniform_rejected",
+                rows=len(rows),
+                reason="values_differ",
+            )
             return None
         return values
 
@@ -592,6 +619,11 @@ class PostgresBackend:
             cast = SQL(column_type[1])  # noqa: E8501  from the field declaration
             expr = value_sql(index, fname, column, cast)
             if field.translate is True:
+                _debug.logic(
+                    "backend.update_rows.translated_merge",
+                    model=model._name,
+                    field=fname,
+                )
                 expr = SQL(
                     """CASE WHEN %(expr)s IS NULL THEN NULL ELSE
                         COALESCE(%(table)s.%(column)s, jsonb_build_object(
@@ -605,6 +637,11 @@ class PostgresBackend:
             if field.company_dependent:
                 fallbacks = model.env["ir.default"]._get_field_column_fallbacks(
                     model._name, fname
+                )
+                _debug.logic(
+                    "backend.update_rows.company_dependent_merge",
+                    model=model._name,
+                    field=fname,
                 )
                 expr = SQL(
                     """(SELECT jsonb_object_agg(d.key, d.value)
@@ -758,7 +795,14 @@ class PostgresBackend:
         ids = list(ids)
         query = Query(model.env, model._table, model._table_sql)
         query.add_where(SQL("%s = ANY(%s)", SQL.identifier(model._table, "id"), ids))
-        return {id_ for [id_] in model.env.execute_query(query.select())}
+        existing = {id_ for [id_] in model.env.execute_query(query.select())}
+        _debug.perf.count(
+            "backend.existing_ids",
+            model=model._name,
+            requested=len(ids),
+            existing=len(existing),
+        )
+        return existing
 
     @staticmethod
     def _lock_clause(allow_referencing: bool) -> SQL:
@@ -1015,6 +1059,13 @@ class PostgresBackend:
                 list(ids),
             )
         )
+        _debug.perf.count(
+            "backend.m2m.pairs_read",
+            model=model._name,
+            relation=relation,
+            records=len(ids),
+            pairs=len(rows),
+        )
         return [(id1, id2) for id1, id2 in rows]
 
     def link_m2m_pairs(
@@ -1122,6 +1173,12 @@ class InMemoryBackend:
             row_dicts.append(row_dict)
             new_ids.append(new_id)
         self.storage.put_rows(model._table, row_dicts)
+        _debug.pipeline(
+            "backend.memory.rows_created",
+            model=model._name,
+            rows=len(row_dicts),
+            columns=len(columns),
+        )
         return new_ids
 
     def update_rows(
@@ -1162,11 +1219,17 @@ class InMemoryBackend:
         result_ids = query._ids
         if result_ids is None:
             result_ids = tuple(self.storage.get_table_ids(model._table))
+            _debug.logic(
+                "backend.memory.fetch_whole_table",
+                model=model._name,
+                rows=len(result_ids),
+            )
         elif column_fields:
             existing = self.storage.get_existing_ids(model._table, list(result_ids))
             result_ids = tuple(id_ for id_ in result_ids if id_ in existing)
 
         if not result_ids:
+            _debug.logic("backend.memory.fetch_nothing", model=model._name)
             return model.browse()
 
         fetched = model.browse(result_ids)
@@ -1257,6 +1320,15 @@ class InMemoryBackend:
         if limit is not None and limit is not False:
             ids = ids[:limit]
 
+        _debug.pipeline(
+            "backend.memory.search",
+            model=model._name,
+            scanned=len(all_ids),
+            matched=len(matching),
+            returned=len(ids),
+            ordered=bool(order),
+            check_access=check_access,
+        )
         query = Query(model.env, model._table, model._table_sql)
         query._ids = tuple(ids)
         return query
