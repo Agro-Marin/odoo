@@ -117,7 +117,9 @@ def _get_borrow_caller() -> str | None:
     frame: FrameType | None = sys._getframe(1)
     while frame is not None:
         name = frame.f_code.co_filename
-        if f"{os.sep}odoo{os.sep}db{os.sep}" not in name:
+        if f"{os.sep}odoo{os.sep}db{os.sep}" not in name and not name.endswith(
+            f"{os.sep}contextlib.py"
+        ):
             return f"{name}:{frame.f_lineno}"
         frame = frame.f_back
     return None

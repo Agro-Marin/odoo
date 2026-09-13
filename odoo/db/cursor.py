@@ -33,7 +33,7 @@ from .errors import (
 )
 from .lifecycle import clear_prepared_cache
 from .metrics import _MetricsMixin, classify_query
-from .pool import ConnectionPool
+from .pool import ConnectionPool, _get_borrow_caller
 from .savepoint import Savepoint, _FlushingSavepoint
 from .schema_cache import TransactionSchemaCache
 from .settings import current as current_pool_settings
@@ -208,13 +208,15 @@ class BaseCursor:
                 "stays aborted. Take the savepoint around the pipeline block, "
                 "not inside it."
             )
-        _debug.logic(
-            "cursor.savepoint_requested",
-            db=vars(self).get("dbname"),
-            flush=flush,
-            depth=self._savepoint_depth,
-            transaction=self.transaction is not None,
-        )
+        if _debug.logic.enabled:
+            _debug.logic(
+                "cursor.savepoint_requested",
+                db=vars(self).get("dbname"),
+                flush=flush,
+                depth=self._savepoint_depth,
+                transaction=self.transaction is not None,
+                caller=_get_borrow_caller(),
+            )
         if flush:
             cls = self._flushing_savepoint_cls
             if self.transaction is not None and not cls._restores_orm_state:
@@ -334,12 +336,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 self._cnx.commit()
 
             self._closed = False
-            _debug.lifecycle(
-                "cursor.opened",
-                db=dbname,
-                readonly=self._readonly,
-                thread=self._thread.name,
-            )
+            if _debug.lifecycle.enabled:
+                _debug.lifecycle(
+                    "cursor.opened",
+                    db=dbname,
+                    readonly=self._readonly,
+                    thread=self._thread.name,
+                    caller=_get_borrow_caller(),
+                )
         except BaseException:
             obj = self.__dict__.get("_obj")
             if obj is not None:
@@ -832,12 +836,14 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._pipeline_statement_time = 0.0
         t0 = monotonic()
         failed = None  # debuglog
-        _debug.pipeline(
-            "cursor.pipeline_opened",
-            db=self.dbname,
-            savepoint_depth=self._savepoint_depth,
-            query_given=query is not None,
-        )
+        if _debug.pipeline.enabled:
+            _debug.pipeline(
+                "cursor.pipeline_opened",
+                db=self.dbname,
+                savepoint_depth=self._savepoint_depth,
+                query_given=query is not None,
+                caller=_get_borrow_caller(),
+            )
         try:
             with ExitStack() as stack:
                 self._pipeline_stack = stack
