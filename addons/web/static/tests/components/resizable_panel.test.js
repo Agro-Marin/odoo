@@ -4,7 +4,7 @@ import { describe, expect, test } from "@odoo/hoot";
 import { drag, queryOne, queryRect, resize } from "@odoo/hoot-dom";
 import { animationFrame } from "@odoo/hoot-mock";
 import { Component, reactive, useState, xml } from "@odoo/owl";
-import { mountWithCleanup } from "@web/../tests/web_test_helpers";
+import { mountWithCleanup, patchWithCleanup } from "@web/../tests/web_test_helpers";
 import { ResizablePanel } from "@web/components/resizable_panel/resizable_panel";
 
 describe.current.tags("desktop");
@@ -305,4 +305,37 @@ test("a replaced onResize prop is the one notified", async () => {
     await animationFrame();
     expect(calls.length).toBeGreaterThan(0);
     expect(calls.every((target) => target === "second")).toBe(true);
+});
+
+test("a drag measures the panel once, at pointerdown, and only writes on each move", async () => {
+    class Parent extends Component {
+        static components = { ResizablePanel };
+        static template = xml`
+            <div style="width: 1000px;">
+                <ResizablePanel minWidth="60" initialWidth="300">
+                    <p>body</p>
+                </ResizablePanel>
+            </div>`;
+        static props = ["*"];
+    }
+    await mountWithCleanup(Parent);
+    await animationFrame();
+    const panel = queryOne(".o_resizable_panel");
+    let rectReads = 0;
+    const { getBoundingClientRect } = panel;
+    patchWithCleanup(panel, {
+        getBoundingClientRect() {
+            rectReads++;
+            return getBoundingClientRect.call(this);
+        },
+    });
+    const dragHelper = await drag(".o_resizable_panel_handle");
+    const readsAtStart = rectReads;
+    expect(readsAtStart).toBeGreaterThan(0);
+    for (const x of [320, 340, 360, 380, 400]) {
+        await dragHelper.moveTo(".o_resizable_panel_handle", { position: { x } });
+    }
+    expect(rectReads).toBe(readsAtStart);
+    await dragHelper.drop();
+    expect(panel.style.width).not.toBe("300px");
 });

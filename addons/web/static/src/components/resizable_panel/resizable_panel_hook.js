@@ -39,9 +39,8 @@ class ResizeController {
         this.minWidth = params.getMinWidth(props);
         this.resizeSide = params.getResizeSide(props);
         this.initialWidth = params.getInitialWidth(props);
-        this.isChangingSize = false;
-        /** @type {string | undefined} */
-        this.docDirection = undefined;
+        /** @type {{ direction: 1 | -1, fixedEdge: number, limit: number, spacing: number } | null} */
+        this.drag = null;
         this.onPointerDown = this.onPointerDown.bind(this);
         this.onPointerMove = this.onPointerMove.bind(this);
         this.onPointerUp = this.onPointerUp.bind(this);
@@ -77,10 +76,21 @@ class ResizeController {
 
     /** @param {PointerEvent} ev */
     onPointerDown(ev) {
-        this.isChangingSize = true;
-        if (this.containerRef.el) {
-            this.docDirection = getComputedStyle(this.containerRef.el).direction;
+        if (!this.containerRef.el) {
+            return;
         }
+        const docDirection = getComputedStyle(this.containerRef.el).direction;
+        const direction =
+            (docDirection === "ltr" && this.resizeSide === "end") ||
+            (docDirection === "rtl" && this.resizeSide === "start")
+                ? 1
+                : -1;
+        this.drag = {
+            direction,
+            fixedEdge: this.containerRect()[direction === 1 ? "left" : "right"],
+            limit: this.limitWidth(),
+            spacing: this.handleSpacing(),
+        };
         document.body.classList.add("pe-none", "user-select-none");
         try {
             this.handleRef.el?.setPointerCapture(ev.pointerId);
@@ -91,7 +101,7 @@ class ResizeController {
     }
 
     onPointerUp() {
-        this.isChangingSize = false;
+        this.drag = null;
         document.body.classList.remove("pe-none", "user-select-none");
         document.removeEventListener("pointermove", this.onPointerMove);
         document.removeEventListener("pointerup", this.onPointerUp);
@@ -100,17 +110,12 @@ class ResizeController {
 
     /** @param {PointerEvent} ev */
     onPointerMove(ev) {
-        if (!this.isChangingSize || !this.containerRef.el) {
+        if (!this.drag || !this.containerRef.el) {
             return;
         }
-        const direction =
-            (this.docDirection === "ltr" && this.resizeSide === "end") ||
-            (this.docDirection === "rtl" && this.resizeSide === "start")
-                ? 1
-                : -1;
-        const fixedSide = direction === 1 ? "left" : "right";
-        const newWidth = (ev.clientX - this.containerRect()[fixedSide]) * direction;
-        this.resize(this.finalWidth(newWidth));
+        const { direction, fixedEdge, limit, spacing } = this.drag;
+        const newWidth = (ev.clientX - fixedEdge) * direction;
+        this.resize(this.clampWidth(newWidth + spacing, limit, spacing));
     }
 
     onWindowResize() {
@@ -130,13 +135,12 @@ class ResizeController {
 
     /**
      * @param {number} width
+     * @param {number} [limit]
+     * @param {number} [spacing]
      * @returns {number}
      */
-    clampWidth(width) {
-        return Math.min(
-            Math.max(this.minWidth, width),
-            this.limitWidth() - this.handleSpacing(),
-        );
+    clampWidth(width, limit = this.limitWidth(), spacing = this.handleSpacing()) {
+        return Math.min(Math.max(this.minWidth, width), limit - spacing);
     }
 
     /**
@@ -217,7 +221,7 @@ export function useResizable({
     onWillUpdateProps((nextProps) => controller.applyProps(nextProps));
 
     onWillUnmount(() => {
-        if (controller.isChangingSize) {
+        if (controller.drag) {
             controller.onPointerUp();
         }
     });
