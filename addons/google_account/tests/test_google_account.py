@@ -10,12 +10,13 @@ from odoo.addons.google_account.models.google_service import (
     GOOGLE_TOKEN_ENDPOINT,
     _get_client_secret,
 )
+from odoo.addons.mixin_encryption.tests.common import EncryptionKeyCase
 
 MODULE = "odoo.addons.google_account.models.google_service"
 
 
 @tagged("post_install", "-at_install")
-class TestGoogleService(TransactionCase):
+class TestGoogleService(EncryptionKeyCase, TransactionCase):
     @classmethod
     def setUpClass(cls):
         super().setUpClass()
@@ -27,10 +28,13 @@ class TestGoogleService(TransactionCase):
         self.icp.set_param("google_gmail_client_id", "CID-123")
         self.assertEqual(self.service._get_client_id("gmail"), "CID-123")
 
-    def test_get_client_secret_reads_config(self):
-        """The client secret helper reads the service-specific parameter."""
-        self.icp.set_param("google_gmail_client_secret", "SECRET-xyz")
+    def test_get_client_secret_reads_the_vault(self):
+        """The client secret helper reads the service's secret out of the vault."""
+        self.env["credential.credential"]._set_system_secret(
+            "google_gmail_client_secret", "SECRET-xyz"
+        )
         self.assertEqual(_get_client_secret(self.icp, "gmail"), "SECRET-xyz")
+        self.assertFalse(self.icp.get_param("google_gmail_client_secret"))
 
     def test_authorize_uri_encodes_all_params(self):
         """The authorize URI embeds the endpoint and the encoded parameters."""

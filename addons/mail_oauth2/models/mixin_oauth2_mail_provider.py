@@ -86,7 +86,9 @@ class MixinOauth2MailProvider(models.AbstractModel):
         Config = self.env["ir.config_parameter"].sudo()
         return (
             Config.get_param(provider.field("client_id")),
-            Config.get_param(provider.field("client_secret")),
+            self.env["credential.credential"]._get_system_secret(
+                provider.field("client_secret")
+            ),
         )
 
     def _oauth2_redirect_uri(self, provider):

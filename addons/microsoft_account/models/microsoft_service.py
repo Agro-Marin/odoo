@@ -31,10 +31,12 @@ def _get_microsoft_client_secret(ICP_sudo, service):
 
     :param ICP_sudo: the model ir.config_parameters in sudo
     :param service: the service that we need the secret key
-    :return: The ICP value
+    :return: the secret, out of the credential vault
     :rtype: str
     """
-    return ICP_sudo.get_param("microsoft_%s_client_secret" % service)
+    return ICP_sudo.env["credential.credential"]._get_system_secret(
+        "microsoft_%s_client_secret" % service
+    )
 
 
 class MicrosoftService(models.AbstractModel):

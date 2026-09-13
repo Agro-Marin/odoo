@@ -21,7 +21,7 @@ class TestOutlookTokenFlow(EncryptionKeyCase, TransactionCase):
         cls.env["ir.config_parameter"].sudo().set_param(
             "microsoft_outlook_client_id", "test-client-id"
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["credential.credential"]._set_system_secret(
             "microsoft_outlook_client_secret", "test-client-secret"
         )
 

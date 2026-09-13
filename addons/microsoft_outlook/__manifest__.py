@@ -1,6 +1,6 @@
 {
     "name": "Microsoft Outlook",
-    "version": "19.0.2.0.0",
+    "version": "19.0.2.1.0",
     "category": "Hidden",
     "description": "Outlook support for incoming / outgoing mail servers",
     "author": "Odoo S.A.",

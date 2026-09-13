@@ -1223,6 +1223,50 @@ class CredentialCredential(models.Model):
             return (payload["username"], payload["password"])
         return None
 
+    # A secret that belongs to the database rather than to a company or an
+    # endpoint (an OAuth application's client secret, say), which used to be an
+    # ir.config_parameter kept in clear.
+    _SYSTEM_SECRET_PREFIX = "System secret: "
+
+    @api.model
+    def _get_system_secret_credential(self, key: str) -> Self:
+        return (
+            self.sudo()
+            .with_context(active_test=False)
+            .search(
+                [
+                    ("name", "=", f"{self._SYSTEM_SECRET_PREFIX}{key}"),
+                    ("company_id", "=", False),
+                ],
+                limit=1,
+            )
+        )
+
+    @api.model
+    def _get_system_secret(self, key: str) -> str | bool:
+        credential = self._get_system_secret_credential(key)
+        if not credential:
+            return False
+        return credential._use_secret_payload().get("value") or False
+
+    @api.model
+    def _set_system_secret(self, key: str, value: str | bool) -> None:
+        credential = self._get_system_secret_credential(key)
+        if not value:
+            credential.unlink()
+            return
+        if credential:
+            credential.set_credential_dict({"value": value})
+            return
+        self.sudo().create(
+            {
+                "name": f"{self._SYSTEM_SECRET_PREFIX}{key}",
+                "category_id": self.env.ref("credential.credential_category_custom").id,
+                "company_id": False,
+                "credential_data": json.dumps({"value": value}),
+            }
+        )
+
     def get_basic_auth(self):
         self.check_singleton()
         if self.username and self.password:

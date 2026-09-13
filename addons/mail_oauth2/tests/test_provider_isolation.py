@@ -18,9 +18,10 @@ class TestProviderIsolation(EncryptionKeyCase, TransactionCase):
 
         Config = cls.env["ir.config_parameter"].sudo()
         Config.set_param("google_gmail_client_id", "GOOGLE-ID")
-        Config.set_param("google_gmail_client_secret", "GOOGLE-SECRET")
+        Vault = cls.env["credential.credential"]
+        Vault._set_system_secret("google_gmail_client_secret", "GOOGLE-SECRET")
         Config.set_param("microsoft_outlook_client_id", "MICROSOFT-ID")
-        Config.set_param("microsoft_outlook_client_secret", "MICROSOFT-SECRET")
+        Vault._set_system_secret("microsoft_outlook_client_secret", "MICROSOFT-SECRET")
 
         cls.server = cls.env["ir.mail_server"].create(
             {

@@ -21,7 +21,7 @@ class TestGmailTokenFlow(EncryptionKeyCase, TransactionCase):
         cls.env["ir.config_parameter"].sudo().set_param(
             "google_gmail_client_id", "test-client-id"
         )
-        cls.env["ir.config_parameter"].sudo().set_param(
+        cls.env["credential.credential"]._set_system_secret(
             "google_gmail_client_secret", "test-client-secret"
         )
 

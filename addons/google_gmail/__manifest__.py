@@ -1,6 +1,6 @@
 {
     "name": "Google Gmail",
-    "version": "19.0.2.0.0",
+    "version": "19.0.2.1.0",
     "category": "Hidden",
     "description": "Gmail support for incoming / outgoing mail servers",
     "author": "Odoo S.A.",

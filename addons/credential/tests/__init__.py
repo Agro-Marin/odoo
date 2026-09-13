@@ -23,3 +23,4 @@ from . import test_secret_values
 from . import test_expiry_is_current
 from . import test_secret_use_and_reveal
 from . import test_category_defaults_on_create
+from . import test_system_secret

@@ -9,5 +9,6 @@ The module adds google user in res user.
     "license": "LGPL-3",
     "depends": [
         "web",
+        "credential",
     ],
 }

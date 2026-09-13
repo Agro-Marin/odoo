@@ -617,7 +617,9 @@ class TestMicrosoftService(EncryptionKeyCase, TransactionCase):
         )
         IrParameter = self.env["ir.config_parameter"].sudo()
         IrParameter.set_param("microsoft_calendar_client_id", "dummy_client_id")
-        IrParameter.set_param("microsoft_calendar_client_secret", "dummy_client_secret")
+        self.env["credential.credential"]._set_system_secret(
+            "microsoft_calendar_client_secret", "dummy_client_secret"
+        )
 
         self.env.user._refresh_microsoft_calendar_token()
 

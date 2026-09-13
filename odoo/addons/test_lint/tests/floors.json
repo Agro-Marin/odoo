@@ -1,6 +1,6 @@
 {
   "bundle_double_eval": 5,
-  "lint_credential_storage": 99,
+  "lint_credential_storage": 95,
   "lint_docstring": 32,
   "lint_gettext_developer_error": 36,
   "lint_gettext_placeholders": 2,

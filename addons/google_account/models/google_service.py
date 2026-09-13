@@ -26,10 +26,12 @@ def _get_client_secret(ICP_sudo, service):
 
     :param ICP_sudo: the model ir.config_parameter in sudo
     :param service: the service that we need the secret key
-    :return: The ICP value
+    :return: the secret, out of the credential vault
     :rtype: str
     """
-    return ICP_sudo.get_param("google_%s_client_secret" % service)
+    return ICP_sudo.env["credential.credential"]._get_system_secret(
+        "google_%s_client_secret" % service
+    )
 
 
 class GoogleService(models.AbstractModel):
@@ -106,7 +108,9 @@ class GoogleService(models.AbstractModel):
             error_msg = _(
                 "Something went wrong during your token generation. Maybe your Authorization Code is invalid or already expired"
             )
-            raise self.env["res.config.settings"].prepare_config_warning(error_msg) from e
+            raise self.env["res.config.settings"].prepare_config_warning(
+                error_msg
+            ) from e
 
     def _refresh_google_token(self, service, rtoken):
         ICP = self.env["ir.config_parameter"].sudo()
