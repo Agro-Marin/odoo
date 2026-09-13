@@ -317,6 +317,9 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         self._thread = threading.current_thread()
 
         self._cnx: psycopg.Connection = pool.borrow(dsn, key=key)
+        self._backend_pid = getattr(  # debuglog
+            getattr(self._cnx, "info", None), "backend_pid", None
+        )
         try:
             self._obj: psycopg.Cursor = self._cnx.cursor()
             if _logger.isEnabledFor(logging.DEBUG):
@@ -342,9 +345,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                     db=dbname,
                     readonly=self._readonly,
                     thread=self._thread.name,
-                    backend_pid=getattr(
-                        getattr(self._cnx, "info", None), "backend_pid", None
-                    ),
+                    backend_pid=self._backend_pid,
                     caller=_get_borrow_caller(),
                 )
         except BaseException:
@@ -513,9 +514,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         _debug.logic(
             "cursor.statement_failed",
             db=vars(self).get("dbname"),
-            backend_pid=getattr(
-                getattr(vars(self).get("_cnx"), "info", None), "backend_pid", None
-            ),
+            backend_pid=vars(self).get("_backend_pid"),
             label=label,
             error=type(exc).__name__,
             sqlstate=getattr(exc, "sqlstate", None),
@@ -557,9 +556,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
             _debug.perf.count(
                 "cursor.statement",
                 db=vars(self).get("dbname"),
-                backend_pid=getattr(
-                    getattr(vars(self).get("_cnx"), "info", None), "backend_pid", None
-                ),
+                backend_pid=vars(self).get("_backend_pid"),
                 label=label,
                 head=words[0][:12].upper() if words else "",
                 kind=query_type,
@@ -928,9 +925,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
                 _debug.lifecycle(
                     "cursor.closed",
                     db=state.get("dbname"),
-                    backend_pid=getattr(
-                        getattr(state.get("_cnx"), "info", None), "backend_pid", None
-                    ),
+                    backend_pid=state.get("_backend_pid"),
                     keep_in_pool=keep_in_pool,
                     commits=state.get("commit_count"),
                     statements=state.get("sql_statement_count"),
@@ -975,7 +970,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         _debug.lifecycle(
             "cursor.committed",
             db=self.dbname,
-            backend_pid=getattr(getattr(self._cnx, "info", None), "backend_pid", None),
+            backend_pid=self._backend_pid,
             commits=self.commit_count,
             schema_changed=self._schema_changed,
             postcommit=len(self.postcommit),
@@ -1021,7 +1016,7 @@ class Cursor(_BulkAccessMixin, _MetricsMixin, BaseCursor):
         _debug.lifecycle(
             "cursor.rollback",
             db=self.dbname,
-            backend_pid=getattr(getattr(self._cnx, "info", None), "backend_pid", None),
+            backend_pid=self._backend_pid,
             prerollback=len(self.prerollback),
             postrollback=len(self.postrollback),
         )
