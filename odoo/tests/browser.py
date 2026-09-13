@@ -632,7 +632,7 @@ class ChromeBrowser:
                     "test.browser.receiver_error",
                     error=type(e).__name__,
                     settled=self._result.done(),
-                    connected=self.ws.connected,
+                    connected=getattr(getattr(self, "ws", None), "connected", None),
                 )
                 if isinstance(e, ConnectionResetError) and self._result.done():
                     return
