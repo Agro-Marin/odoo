@@ -1912,6 +1912,34 @@ class TranslationModuleReader(TranslationReader):
             terms=extracted_count,
         )
 
+    def _walk_starts(self) -> Iterator[tuple[str, str, bool]]:
+        wanted = None if "all" in self._modules else set(self._modules)
+        for path, recursive, is_addons_root in self._path_list:
+            if wanted is None:
+                yield path, path, recursive
+            elif not is_addons_root:
+                if "base" in wanted:
+                    yield path, path, recursive
+            else:
+                try:
+                    with os.scandir(path) as entries:
+                        starts = [
+                            entry.path
+                            for entry in entries
+                            if entry.name in wanted and entry.is_dir()
+                        ]
+                except OSError:
+                    _debug.logic("translate.walk_root_unreadable", path=path)
+                    continue
+                _debug.logic(
+                    "translate.walk_narrowed",
+                    path=path,
+                    wanted=len(wanted),
+                    found=len(starts),
+                )
+                for start in starts:
+                    yield start, path, recursive
+
     def _export_translatable_resources(self) -> None:
 
         for bin_path in ["orm", "osv", "report", "modules", "service", "tools"]:
@@ -1928,9 +1956,9 @@ class TranslationModuleReader(TranslationReader):
             paths=len(self._path_list),
             installed=len(self._installed_modules),
         )
-        for path, recursive, _is_addons_root in self._path_list:
-            _logger.debug("Scanning files of modules at %s", path)
-            for root, _dummy, files in os.walk(path, followlinks=True):
+        for start, path, recursive in self._walk_starts():
+            _logger.debug("Scanning files of modules at %s", start)
+            for root, _dummy, files in os.walk(start, followlinks=True):
                 for fname in fnmatch.filter(files, "*.py"):
                     self._babel_extract_terms(
                         fname,
