@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
-from psycopg.errors import ReadOnlySqlTransaction
+from psycopg.errors import ProtocolViolation, ReadOnlySqlTransaction
 
 import odoo
 from odoo.api import SUPERUSER_ID
@@ -1571,6 +1571,55 @@ class TestEsbuildLockCursor(TransactionCase):
             self.env.cr.fetchone()[0],
             msg="the advisory lock must not outlive the compile",
         )
+
+    def _failing_release_cursor(self, released):
+        """A cursor whose release fails the way a timed-out pool makes it fail."""
+
+        def _fail(step):
+            def _raise():
+                released.append(step)
+                raise ProtocolViolation("query_wait_timeout")
+
+            return _raise
+
+        return SimpleNamespace(rollback=_fail("rollback"), close=_fail("close"))
+
+    def test_a_release_that_fails_degrades_instead_of_reaching_the_render(self):
+        released = []
+        fake_cr = self._failing_release_cursor(released)
+        with (
+            patch.object(
+                type(self.env.registry),
+                "cursor",
+                lambda _self, readonly=False: fake_cr,
+            ),
+            self.assertLogs(f"{ASSET_ROOT}.lock", level=logging.WARNING) as logged,
+        ):
+            with self._qweb._get_esbuild_lock_cursor("b.x") as lock_cr:
+                self.assertIs(lock_cr, fake_cr)
+        self.assertEqual(
+            released,
+            ["rollback", "close"],
+            msg="a rollback that raises must not skip the close",
+        )
+        self.assertTrue(
+            any("rw_cursor_release_failed" in line for line in logged.output),
+            msg="the failed release must be reported, not swallowed silently",
+        )
+
+    def test_a_release_that_fails_does_not_mask_the_compile_error(self):
+        fake_cr = self._failing_release_cursor([])
+        with (
+            patch.object(
+                type(self.env.registry),
+                "cursor",
+                lambda _self, readonly=False: fake_cr,
+            ),
+            self.assertLogs(f"{ASSET_ROOT}.lock", level=logging.WARNING),
+            self.assertRaises(ZeroDivisionError),
+        ):
+            with self._qweb._get_esbuild_lock_cursor("b.x"):
+                raise ZeroDivisionError("the compile failed")
 
     def test_readonly_test_cursor_locks_on_the_request_cursor(self):
         with patch.object(self.env.cr, "_readonly", True):
