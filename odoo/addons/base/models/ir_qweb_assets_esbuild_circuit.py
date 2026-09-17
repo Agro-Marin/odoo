@@ -118,8 +118,24 @@ class IrQweb(models.AbstractModel):
         try:
             yield rw_cr
         finally:
-            rw_cr.rollback()
-            rw_cr.close()
+            # Releasing the lock cursor is as fallible as opening it: a pool
+            # that timed out mid-request makes rollback() (and the DEALLOCATE
+            # psycopg runs with it) raise on a connection that is already
+            # gone. Letting that out of the context manager turns a degradation
+            # that the caller handles into a render error on the page.
+            for step in ("rollback", "close"):
+                try:
+                    getattr(rw_cr, step)()
+                except Exception as exc:
+                    log_event(
+                        _lock_log,
+                        logging.WARNING,
+                        "rw_cursor_release_failed",
+                        bundle=bundle,
+                        step=step,
+                        err=type(exc).__name__,
+                        msg=str(exc)[:200],
+                    )
 
     def _acquire_esbuild_lock(self, bundle: str, cr=None) -> None:
         """Serialize compilation without changing the page's module layout.
