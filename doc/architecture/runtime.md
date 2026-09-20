@@ -325,6 +325,31 @@ under a second list would get a fresh virtual id there and come back
 duplicated on the next round-trip. `odoo/orm/tests/test_new_record_sibling_one2many.py`
 pins both halves.
 
+**A one-to-one is a one2many whose inverse the database holds unique.**
+`fields.One2one(comodel, inverse_name)` (`fields/relational/one2one.py`) reads and
+caches exactly as a one2many does, so every flush, scope and tree rule above
+applies to it unchanged; what it adds is a contract on the *inverse*: the
+many2one must declare `index="unique"` (a partial unique btree, `WHERE col IS NOT
+NULL`, kept stale-checked by `Registry.check_indexes`), so the cardinality is a
+fact of the schema and not of the reader. Writing a record points its inverse
+here; the record that held the seat is released when its inverse is optional and
+refused when it is required, because a one-to-one moves nothing silently. It
+replaced three hand-rolled shapes with the same intent — a one2many plus a stored
+computed many2one, a one2many read as a scalar, a searched compute — on
+`resource.resource.asset_id`, `resource.resource.employee_id` and
+`resource.asset.workcenter_id`. Because it reads as one record, a many2one may be
+`related` to it: the related's comodel is the one2one's, and its search walks the
+one2many path.
+
+**A tree member's polymorphic references name its root.** `BaseModel._get_reference_model_name()`
+is `_name` for an ordinary model and the root's name for a member of a table-inheritance tree
+(`mixin.table.inheritance.root`). A `One2many` over a `Many2oneReference` reads and writes that
+name, so `message_ids`, followers, activities and attachments of a row are the same set whichever
+model the row was read through; `mail.thread.get_views` hands the client `thread_model` for such a
+model and the form's chatter binds to it. Python that must record a reference itself records the
+reference name, never `self._name`. The rule exists because a message posted under
+`resource.asset.vehicle` was invisible to the same row read as `resource.asset`.
+
 **An x2many cache slot belongs to the access scope that filled it.** The field
 cache keys a context-dependent field's slot by the values `Field.depends_context`
 names (`lang`, `active_test`, `company`, `uid`); every x2many adds `access`

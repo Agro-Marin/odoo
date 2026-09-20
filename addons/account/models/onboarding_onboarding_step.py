@@ -50,7 +50,7 @@ class OnboardingOnboardingStep(models.Model):
             "account.onboarding_onboarding_step_base_document_layout",
             raise_if_not_found=False,
         )
-        if not step or not self.env.company.external_report_layout_id:
+        if not step or not self.env.company.report_config_id.external_report_layout_id:
             return False
         return self.action_validate_step(
             "account.onboarding_onboarding_step_base_document_layout"
@@ -144,8 +144,8 @@ class OnboardingOnboardingStep(models.Model):
         return {
             "type": "ir.actions.act_window",
             "name": _("Sales tax"),
-            "res_id": self.env.company.id,
-            "res_model": "res.company",
+            "res_id": self.env.company.account_config_id.id,
+            "res_model": "account.config",
             "target": "new",
             "view_mode": "form",
             "views": [[view_id, "form"]],

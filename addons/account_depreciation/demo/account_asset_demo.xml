@@ -5,14 +5,14 @@
         <record id="account_asset_group_demo" model="account.asset.group">
             <field name="name">Odoo Office</field>
         </record>
-        <record id="account_asset_model_demo" model="resource.asset">
+        <record id="account_asset_model_demo" model="account.depreciation.board">
             <field name="name">Asset - 5 Years</field>
             <field name="depreciation_prorata">none</field>
             <field name="value_original">1000</field>
             <field
                 name="journal_id"
                 model="account.journal"
-                search="[                 ('type', '=', 'general'),                 ('company_id', '=', ref('base.main_company')),                 ('id', '!=', obj().env.user.company_id.currency_exchange_journal_id.id)]" />
+                search="[                 ('type', '=', 'general'),                 ('company_id', '=', ref('base.main_company')),                 ('id', '!=', obj().env.user.company_id.account_config_id.currency_exchange_journal_id.id)]" />
             <field
                 name="account_asset_id"
                 model="account.account"

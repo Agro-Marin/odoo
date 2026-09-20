@@ -34,7 +34,7 @@ class TestFleetVehicle(TransactionCase):
         )
 
     def _vehicle(self, plate="PRB-001", **vals):
-        return (
+        asset = (
             self.env["resource.asset"]
             .with_user(self.manager)
             .create(
@@ -47,24 +47,24 @@ class TestFleetVehicle(TransactionCase):
                 }
             )
         )
+        # A vehicle's own data lives on its model: read it there.
+        return (
+            self.env["resource.asset.vehicle"].with_user(self.manager).browse(asset.id)
+        )
 
     def test_a_vehicle_is_an_asset_of_its_model(self):
         vehicle = self._vehicle()
-        self.assertTrue(vehicle.is_vehicle)
-        self.assertTrue(self.model.is_vehicle)
+        self.assertEqual(vehicle._get_concrete()._name, "resource.asset.vehicle")
+        self.assertEqual(self.model.asset_kind_code, "vehicle")
         self.assertEqual(vehicle.manufacturer_id, self.brand)
         self.assertEqual(
             (vehicle.seats, vehicle.fuel_type, vehicle.co2), (5, "diesel", 120)
         )
         self.assertEqual(vehicle.display_name, "Probe Motors / Probe One / PRB-001")
         self.assertEqual(vehicle.get_identifier("plate"), "PRB-001")
-        self.assertIn(
-            vehicle,
-            self.env["resource.asset"].search(
-                self.env.ref("fleet.fleet_vehicle_action").domain
-                and [("is_vehicle", "=", True)]
-            ),
-        )
+        action = self.env.ref("fleet.fleet_vehicle_action")
+        self.assertEqual(action.res_model, "resource.asset.vehicle")
+        self.assertIn(vehicle.id, self.env[action.res_model].search([]).ids)
         self.assertFalse(
             self.env["resource.asset"]
             .create(
@@ -73,7 +73,8 @@ class TestFleetVehicle(TransactionCase):
                     "kind_id": self.env.ref("resource_asset.kind_tool").id,
                 }
             )
-            .is_vehicle
+            .kind_code
+            == "vehicle"
         )
 
     def test_a_driver_is_an_operator_assignment(self):
@@ -97,7 +98,9 @@ class TestFleetVehicle(TransactionCase):
         )
         self.assertEqual(vehicle.operator_history_count, 2)
         self.assertEqual(
-            self.env["resource.asset"].search([("operator_id", "=", self.bob.id)]),
+            self.env["resource.asset.vehicle"].search(
+                [("operator_id", "=", self.bob.id)]
+            ),
             vehicle,
         )
         self.assertIn(
@@ -120,7 +123,7 @@ class TestFleetVehicle(TransactionCase):
         self.assertEqual(car.future_operator_id, self.bob)
         self.assertGreater(car.date_future_operator, fields.Datetime.now())
         self.assertEqual(
-            self.env["resource.asset"].search(
+            self.env["resource.asset.vehicle"].search(
                 [("future_operator_id", "=", self.bob.id)]
             ),
             car,
@@ -145,9 +148,11 @@ class TestFleetVehicle(TransactionCase):
             )
 
     def test_a_vehicle_waiting_for_its_plate_is_named_by_what_identifies_it(self):
-        awaiting = self._vehicle(plate=False, vin_sn="VIN-4242")
+        awaiting = self._vehicle(plate=False, vin_sn="5YJ3E1EA8PF004242")
 
-        self.assertEqual(awaiting.display_name, "Probe Motors / Probe One / VIN-4242")
+        self.assertEqual(
+            awaiting.display_name, "Probe Motors / Probe One / 5YJ3E1EA8PF004242"
+        )
 
     def test_a_model_carries_its_fuel_specifications(self):
         self.model.product_tmpl_id.write(
@@ -288,7 +293,7 @@ class TestVehicleIsItsOwnModel(TransactionCase):
         )
 
         self.assertEqual(vehicle.resource_id.asset_id, self.Asset.browse(vehicle.id))
-        self.assertIn(vehicle.id, vehicle.resource_id.asset_ids.ids)
+        self.assertIn(vehicle.id, vehicle.resource_id.asset_id.ids)
 
     def test_a_vehicle_takes_part_in_the_asset_hierarchy(self):
         """`parent_id` names `resource.asset`, which is this model's tree root,
@@ -357,7 +362,9 @@ class TestVehicleInheritsWhatBindsAnAsset(TransactionCase):
         cls.kind = cls.env.ref("resource_asset.kind_vehicle")
         cls.other_company = cls.env["res.company"].create({"name": "Elsewhere"})
         cls.user = new_test_user(
-            cls.env, login="vehicle_reader", groups="resource_asset.group_asset_user"
+            cls.env,
+            login="vehicle_reader",
+            groups="resource_asset.group_asset_user,fleet.fleet_group_user",
         )
 
     def test_the_multi_company_rule_of_the_asset_binds_the_vehicle(self):
@@ -432,3 +439,141 @@ class TestFleetActionContexts(TransactionCase):
         self.assertEqual(model_context["default_asset_kind_id"], vehicle_kind.id)
         self.assertEqual(model_context["default_type"], "consu")
         self.assertFalse(model_context["default_sale_ok"])
+
+
+class TestIdentifierColumnsLiveOnTheVehicle(TransactionCase):
+    def test_the_root_reads_a_plate_through_the_rows_and_the_vehicle_stores_it(self):
+        Asset = self.env["resource.asset"]
+        Vehicle = self.env["resource.asset.vehicle"]
+        for name in ("license_plate", "vin_sn", "engine_sn"):
+            self.assertFalse(Asset._fields[name].store, name)
+            self.assertTrue(Vehicle._fields[name].store, name)
+            for sibling in Asset._get_model_names_in_tree() - {Vehicle._name}:
+                self.assertFalse(self.env[sibling]._fields[name].store, sibling)
+        self.env.cr.execute(
+            "SELECT column_name FROM information_schema.columns"
+            " WHERE table_name = 'resource_asset' AND column_name = 'license_plate'"
+        )
+        self.assertFalse(self.env.cr.fetchall())
+        tool = Asset.create(
+            {
+                "name": "Tagged Tool",
+                "kind_id": self.env.ref("resource_asset.kind_tool").id,
+                "license_plate": "TOOL-1",
+            }
+        )
+        self.assertEqual(tool.get_identifier("plate"), "TOOL-1")
+        self.assertEqual(tool.license_plate, "TOOL-1")
+        self.assertIn(tool, Asset.search([("license_plate", "=", "TOOL-1")]))
+        van = Asset.create(
+            {
+                "name": "Van",
+                "kind_id": self.env.ref("resource_asset.kind_vehicle").id,
+                "license_plate": "VAN-1",
+            }
+        )
+        self.assertIn(van, Asset.search([("license_plate", "ilike", "VAN")]))
+        self.assertEqual(Vehicle.browse(van.id).license_plate, "VAN-1")
+        self.assertEqual(Vehicle.search([("license_plate", "=", "VAN-1")]).id, van.id)
+
+    def test_a_deliberate_retype_moves_the_row_and_keeps_the_id(self):
+        Asset = self.env["resource.asset"]
+        tool_kind = self.env.ref("resource_asset.kind_tool")
+        van = Asset.create(
+            {
+                "name": "Retyped",
+                "kind_id": self.env.ref("resource_asset.kind_vehicle").id,
+                "license_plate": "RTY-1",
+            }
+        )
+        van_id = van.id
+        with self.assertRaises(ValidationError):
+            van.kind_id = tool_kind
+        van._retype(tool_kind)
+        self.assertEqual(Asset.browse(van_id)._get_concrete()._name, "resource.asset")
+        self.assertEqual(Asset.browse(van_id).kind_id, tool_kind)
+        self.assertEqual(Asset.browse(van_id).license_plate, "RTY-1")
+        self.assertFalse(
+            self.env["resource.asset.vehicle"].search([("id", "=", van_id)])
+        )
+        Asset.browse(van_id)._retype(self.env.ref("resource_asset.kind_vehicle"))
+        vehicle = self.env["resource.asset.vehicle"].browse(van_id)
+        self.assertEqual(vehicle._get_concrete()._name, "resource.asset.vehicle")
+        self.assertEqual(vehicle.license_plate, "RTY-1")
+
+
+class TestAVehicleThreadsOnTheRoot(TransactionCase):
+    def test_the_vehicle_model_reads_and_writes_the_root_thread(self):
+        Asset = self.env["resource.asset"]
+        Vehicle = self.env["resource.asset.vehicle"]
+        van = Asset.create(
+            {
+                "name": "Threaded",
+                "kind_id": self.env.ref("resource_asset.kind_vehicle").id,
+            }
+        )
+        van.message_post(body="through the root")
+        vehicle = Vehicle.browse(van.id)
+        self.assertEqual(vehicle._get_reference_model_name(), "resource.asset")
+        self.assertEqual(vehicle.message_ids, van.message_ids)
+        vehicle.message_ids = [
+            (0, 0, {"body": "through the vehicle", "message_type": "comment"})
+        ]
+        self.assertEqual(set(van.message_ids.mapped("model")), {"resource.asset"})
+        self.assertEqual(len(van.message_ids), len(vehicle.message_ids))
+        self.assertIn(van, Asset.search([("message_ids.body", "ilike", "vehicle")]))
+        self.assertIn(
+            vehicle, Vehicle.search([("message_ids.body", "ilike", "through the root")])
+        )
+        views = Vehicle.get_views([[False, "form"]])
+        self.assertEqual(
+            views["models"]["resource.asset.vehicle"].get("thread_model"),
+            "resource.asset",
+        )
+        self.assertNotIn(
+            "thread_model",
+            Asset.get_views([[False, "form"]])["models"]["resource.asset"],
+        )
+
+    def test_a_tracked_write_through_either_model_records_the_root(self):
+        Asset = self.env["resource.asset"]
+        Vehicle = self.env["resource.asset.vehicle"]
+        van = Asset.create(
+            {
+                "name": "Tracked",
+                "kind_id": self.env.ref("resource_asset.kind_vehicle").id,
+            }
+        )
+        self.flush_tracking()
+        van.write({"date_acquisition": "2026-01-01"})
+        self.flush_tracking()
+        Vehicle.browse(van.id).write({"date_acquisition": "2026-02-01"})
+        self.flush_tracking()
+        vehicle = Vehicle.browse(van.id)
+        vehicle.message_subscribe(partner_ids=self.env.user.partner_id.ids)
+        vehicle.activity_schedule("mail.mail_activity_data_todo", summary="Probe")
+        tracked = van.message_ids.filtered("tracking_value_ids")
+        self.assertEqual(len(tracked), 2)
+        self.assertEqual(set(tracked.mapped("model")), {"resource.asset"})
+        self.assertEqual(
+            set(van.message_follower_ids.mapped("res_model")), {"resource.asset"}
+        )
+        self.assertEqual(set(van.activity_ids.mapped("res_model")), {"resource.asset"})
+        self.assertEqual(vehicle.activity_ids, van.activity_ids)
+
+    def flush_tracking(self):
+        self.env.flush_all()
+        self.env.cr.precommit.run()
+
+
+class TestSetAsideColumnsAreSwept(TransactionCase):
+    def test_a_member_table_loses_the_copy_of_a_column_the_root_set_aside(self):
+        self.env.cr.execute(
+            "ALTER TABLE resource_asset_vehicle ADD COLUMN legacy_probe varchar"
+        )
+        self.env["resource.asset"]._drop_set_aside_member_columns()
+        self.env.cr.execute(
+            "SELECT 1 FROM information_schema.columns"
+            " WHERE table_name = 'resource_asset_vehicle' AND column_name = 'legacy_probe'"
+        )
+        self.assertFalse(self.env.cr.fetchall())

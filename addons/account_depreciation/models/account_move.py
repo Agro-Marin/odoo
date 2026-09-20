@@ -2,19 +2,27 @@ from dateutil.relativedelta import relativedelta
 
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import UserError, ValidationError
+from odoo.libs.debug_log import DebugLog
 from odoo.tools import SQL, float_compare
 from odoo.tools.misc import formatLang
+
+_debug = DebugLog(__name__)
 
 
 class AccountMove(models.Model):
     _inherit = "account.move"
 
-    depreciation_asset_id = fields.Many2one(
-        comodel_name="resource.asset",
+    depreciation_board_id = fields.Many2one(
+        comodel_name="account.depreciation.board",
         index=True,
         copy=False,
         domain="[('company_id', '=', company_id)]",
         ondelete="cascade",
+    )
+    depreciation_asset_id = fields.Many2one(
+        related="depreciation_board_id.asset_id",
+        store=True,
+        index="btree_not_null",
     )
     asset_remaining_value = fields.Monetary(
         string="Depreciable Value",
@@ -40,18 +48,24 @@ class AccountMove(models.Model):
         store=True,
     )
 
-    capitalised_asset_ids = fields.One2many(
-        comodel_name="resource.asset",
+    capitalised_board_ids = fields.One2many(
+        comodel_name="account.depreciation.board",
         string="Assets",
-        compute="_compute_capitalised_asset_ids",
+        compute="_compute_capitalised_board_ids",
+        compute_sudo=True,
+    )
+    capitalised_asset_ids = fields.Many2many(
+        comodel_name="resource.asset",
+        string="Capitalised Assets",
+        compute="_compute_capitalised_board_ids",
         compute_sudo=True,
     )
     count_capitalised_asset = fields.Count(
-        count_of="capitalised_asset_ids",
+        count_of="capitalised_board_ids",
         compute_sudo=True,
     )
     draft_asset_exists = fields.Boolean(
-        compute="_compute_capitalised_asset_ids",
+        compute="_compute_capitalised_board_ids",
         compute_sudo=True,
     )
     asset_move_type = fields.Selection(
@@ -69,12 +83,13 @@ class AccountMove(models.Model):
     )
 
     @api.depends(
-        "depreciation_asset_id",
+        "depreciation_board_id",
         "depreciation_value",
-        "depreciation_asset_id.value_depreciable",
-        "depreciation_asset_id.value_depreciated_import",
+        "depreciation_board_id.value_depreciable",
+        "depreciation_board_id.value_depreciated_import",
         "state",
     )
+    @_debug.perf.timed
     def _compute_depreciation_cumulative_value(self):
         self.asset_depreciated_value = 0
         self.asset_remaining_value = 0
@@ -84,9 +99,9 @@ class AccountMove(models.Model):
             self._fields["asset_depreciated_value"],
         ]
         with self.env.protecting(
-            fields, self.depreciation_asset_id.depreciation_move_ids
+            fields, self.depreciation_board_id.depreciation_move_ids
         ):
-            for asset in self.depreciation_asset_id:
+            for asset in self.depreciation_board_id:
                 depreciated = asset.value_depreciated_import
                 remaining = asset.value_depreciable - asset.value_depreciated_import
                 for move in asset.depreciation_move_ids._sorted_by_date():
@@ -97,11 +112,12 @@ class AccountMove(models.Model):
                     move.asset_depreciated_value = depreciated
 
     @api.depends("line_ids.balance")
+    @_debug.perf.timed
     def _compute_depreciation_value(self):
         for move in self:
             asset = (
-                move.depreciation_asset_id
-                or move.reversed_entry_id.depreciation_asset_id
+                move.depreciation_board_id
+                or move.reversed_entry_id.depreciation_board_id
             )
             if asset:
                 depreciation_lines = move._get_asset_depreciation_line()
@@ -131,16 +147,16 @@ class AccountMove(models.Model):
                 asset_depreciation = 0
             move.depreciation_value = asset_depreciation
 
-    @api.depends("depreciation_asset_id", "capitalised_asset_ids")
+    @api.depends("depreciation_board_id", "capitalised_board_ids")
     def _compute_asset_move_type(self):
         for move in self:
-            if move.capitalised_asset_ids:
+            if move.capitalised_board_ids:
                 move.asset_move_type = (
                     "positive_revaluation"
-                    if move.capitalised_asset_ids.increased_asset_id
+                    if move.capitalised_board_ids.increased_board_id
                     else "purchase"
                 )
-            elif not (move.asset_move_type and move.depreciation_asset_id):
+            elif not (move.asset_move_type and move.depreciation_board_id):
                 move.asset_move_type = False
 
     def _inverse_depreciation_value(self):
@@ -148,6 +164,9 @@ class AccountMove(models.Model):
             depreciation_line = move._get_asset_depreciation_line()
             counterpart_line = move.line_ids - depreciation_line
             if len(depreciation_line) != 1 or len(counterpart_line) != 1:
+                _debug.logic(
+                    "depreciation_value.refused", reason="not_two_lines", move=move
+                )
                 raise UserError(
                     _(
                         "The depreciation of %s cannot be set from the board: the entry "
@@ -168,11 +187,14 @@ class AccountMove(models.Model):
                 }
             )
 
-    @api.constrains("state", "depreciation_asset_id")
+    @api.constrains("state", "depreciation_board_id")
     def _constrains_check_asset_state(self):
-        for move in self.filtered(lambda mv: mv.depreciation_asset_id):
-            asset_id = move.depreciation_asset_id
+        for move in self.filtered(lambda mv: mv.depreciation_board_id):
+            asset_id = move.depreciation_board_id
             if asset_id.depreciation_state == "draft" and move.state == "posted":
+                _debug.logic(
+                    "post.refused", reason="draft_board", move=move, board=asset_id
+                )
                 raise ValidationError(
                     _(
                         "You can't post an entry related to a draft asset. Please post the asset before."
@@ -193,9 +215,9 @@ class AccountMove(models.Model):
             dict(values) for values in default_values_list or [{} for _i in self]
         ]
         for move, default_values in zip(self, default_values_list, strict=True):
-            if move.depreciation_asset_id:
+            if move.depreciation_board_id:
                 first_draft = min(
-                    move.depreciation_asset_id.depreciation_move_ids.filtered(
+                    move.depreciation_board_id.depreciation_move_ids.filtered(
                         lambda m: m.state == "draft"
                     ),
                     key=lambda m: m.date,
@@ -203,16 +225,16 @@ class AccountMove(models.Model):
                 )
                 if first_draft:
                     first_draft.depreciation_value += move.depreciation_value
-                elif move.depreciation_asset_id.depreciation_state != "close":
+                elif move.depreciation_board_id.depreciation_state != "close":
                     last_date = max(
-                        move.depreciation_asset_id.depreciation_move_ids.mapped("date")
+                        move.depreciation_board_id.depreciation_move_ids.mapped("date")
                     )
-                    depreciation_period = move.depreciation_asset_id.depreciation_period
+                    depreciation_period = move.depreciation_board_id.depreciation_period
 
                     self.create(
                         self._prepare_move_for_asset_depreciation(
                             {
-                                "asset_id": move.depreciation_asset_id,
+                                "asset_id": move.depreciation_board_id,
                                 "amount": move.depreciation_value,
                                 "depreciation_beginning_date": last_date
                                 + (
@@ -240,8 +262,14 @@ class AccountMove(models.Model):
                         currency_obj=move.company_id.currency_id,
                     ),
                 )
-                move.depreciation_asset_id.message_post(body=msg)
-                default_values["depreciation_asset_id"] = move.depreciation_asset_id.id
+                move.depreciation_board_id.message_post(body=msg)
+                _debug.lifecycle(
+                    "depreciation_entry_reversed",
+                    move=move,
+                    board=move.depreciation_board_id,
+                    to_first_draft=bool(first_draft),
+                )
+                default_values["depreciation_board_id"] = move.depreciation_board_id.id
                 default_values["asset_number_days"] = -move.asset_number_days
                 default_values["asset_depreciation_beginning_date"] = (
                     default_values.get("date", move.date)
@@ -252,20 +280,24 @@ class AccountMove(models.Model):
     def action_draft(self):
         for move in self:
             if any(
-                asset_id.depreciation_state != "draft"
-                for asset_id in move.capitalised_asset_ids
+                board.depreciation_state != "draft"
+                for board in move.capitalised_board_ids
             ):
+                _debug.logic("draft.refused", reason="posted_board", move=move)
                 raise UserError(
                     _("You cannot reset to draft an entry related to a posted asset")
                 )
-            move.capitalised_asset_ids.filtered(
+            drafts = move.capitalised_board_ids.filtered(
                 lambda x: x.depreciation_state == "draft"
-            ).unlink()
+            )
+            created = drafts.filtered("created_asset").asset_id
+            drafts.unlink()
+            created.unlink()
         return super().action_draft()
 
     def _log_depreciation_asset(self):
-        for move in self.filtered(lambda m: m.depreciation_asset_id):
-            asset = move.depreciation_asset_id
+        for move in self.filtered(lambda m: m.depreciation_board_id):
+            asset = move.depreciation_board_id
             msg = _(
                 "Depreciation entry %(name)s posted (%(value)s)",
                 name=move.name,
@@ -286,7 +318,8 @@ class AccountMove(models.Model):
                 if not move_line._creates_an_asset():
                     continue
                 plans.extend(move_line._plan_assets())
-        return self.env["resource.asset"]._create_from_plans(plans)
+        _debug.pipeline("assets_planned", moves=self, plans=len(plans))
+        return self.env["account.depreciation.board"]._create_from_plans(plans)
 
     @api.model
     def _prepare_move_for_asset_depreciation(self, vals):
@@ -298,6 +331,11 @@ class AccountMove(models.Model):
             "asset_number_days",
         } - set(vals)
         if missing_fields:
+            _debug.logic(
+                "depreciation_move.refused",
+                reason="missing_fields",
+                missing=sorted(missing_fields),
+            )
             raise UserError(_("Some fields are missing %s", ", ".join(missing_fields)))
         asset = vals["asset_id"]
         analytic_distribution = asset.analytic_distribution
@@ -342,7 +380,7 @@ class AccountMove(models.Model):
                     depreciation_line(asset.account_depreciation_expense_id, True),
                 ),
             ],
-            "depreciation_asset_id": asset.id,
+            "depreciation_board_id": asset.id,
             "ref": ref,
             "asset_depreciation_beginning_date": vals["depreciation_beginning_date"],
             "asset_number_days": vals["asset_number_days"],
@@ -365,7 +403,7 @@ class AccountMove(models.Model):
         )
 
     def _get_asset_depreciation_line(self):
-        asset = self.depreciation_asset_id
+        asset = self.depreciation_board_id
         expense_lines = self.line_ids.filtered(
             lambda line: line.account_id == asset.account_depreciation_expense_id
         )
@@ -384,35 +422,47 @@ class AccountMove(models.Model):
             )
         )
 
-    @api.depends("line_ids.capitalised_asset_ids")
-    def _compute_capitalised_asset_ids(self):
+    @api.depends("line_ids.capitalised_board_ids")
+    def _compute_capitalised_board_ids(self):
         for record in self:
-            record.capitalised_asset_ids = record.line_ids.capitalised_asset_ids
+            record.capitalised_board_ids = record.line_ids.capitalised_board_ids
+            record.capitalised_asset_ids = record.capitalised_board_ids.asset_id
             record.draft_asset_exists = bool(
-                record.capitalised_asset_ids.filtered(
+                record.capitalised_board_ids.filtered(
                     lambda x: x.depreciation_state == "draft"
                 )
             )
 
     def open_asset_view(self):
-        return self.depreciation_asset_id.open_asset(["form"])
+        return self.depreciation_board_id.open_board(["form"])
 
     def action_view_capitalised_asset_ids(self):
-        return self.capitalised_asset_ids.open_asset(["list", "form"])
+        return self.capitalised_board_ids.open_board(["list", "form"])
 
 
 class AccountMoveLine(models.Model):
     _inherit = "account.move.line"
 
-    capitalised_asset_ids = fields.Many2many(
-        comodel_name="resource.asset",
-        relation="asset_move_line_rel",
+    capitalised_board_ids = fields.Many2many(
+        comodel_name="account.depreciation.board",
+        relation="depreciation_board_move_line_rel",
         column1="line_id",
-        column2="asset_id",
+        column2="board_id",
         string="Related Assets",
         copy=False,
         context={"active_test": False},
     )
+    capitalised_asset_ids = fields.Many2many(
+        comodel_name="resource.asset",
+        string="Capitalised Assets",
+        compute="_compute_capitalised_asset_ids",
+    )
+
+    @api.depends("capitalised_board_ids.asset_id")
+    def _compute_capitalised_asset_ids(self):
+        for line in self:
+            line.capitalised_asset_ids = line.capitalised_board_ids.asset_id
+
     non_deductible_tax_value = fields.Monetary(
         currency_field="company_currency_id",
         compute="_compute_non_deductible_tax_value",
@@ -427,7 +477,7 @@ class AccountMoveLine(models.Model):
             and account.can_create_asset
             and account.create_asset != "no"
             and not (self.currency_id or move.currency_id).is_zero(self.price_total)
-            and not self.capitalised_asset_ids
+            and not self.capitalised_board_ids
             and not self.tax_line_id
             and self.price_total > 0
             and not (
@@ -481,6 +531,13 @@ class AccountMoveLine(models.Model):
                         "component_of_unit": position > 0,
                     }
                 )
+        _debug.pipeline(
+            "line_planned",
+            line=self,
+            units=units,
+            profiles=len(profiles),
+            plans=len(plans),
+        )
         return plans
 
     def _get_asset_vals(self):
@@ -488,6 +545,7 @@ class AccountMoveLine(models.Model):
         move = self.move_id
         if not self.name:
             if not self.product_id:
+                _debug.logic("asset_vals.refused", reason="no_label", line=self)
                 raise UserError(
                     _(
                         "Journal Items of %(account)s should have a label in order to generate an asset",
@@ -507,16 +565,21 @@ class AccountMoveLine(models.Model):
         }
 
     def _get_computed_taxes(self):
-        if self.move_id.depreciation_asset_id:
+        if self.move_id.depreciation_board_id:
             return self.tax_ids
         return super()._get_computed_taxes()
 
     def turn_as_asset(self):
         if len(self.company_id) != 1:
+            _debug.logic(
+                "turn_as_asset.refused", reason="several_companies", lines=self
+            )
             raise UserError(_("All the lines should be from the same company"))
         if any(line.move_id.state == "draft" for line in self):
+            _debug.logic("turn_as_asset.refused", reason="draft_moves", lines=self)
             raise UserError(_("All the lines should be posted"))
         if any(account != self[0].account_id for account in self.mapped("account_id")):
+            _debug.logic("turn_as_asset.refused", reason="several_accounts", lines=self)
             raise UserError(_("All the lines should be from the same account"))
         ctx = self.env.context.copy()
         ctx.update(
@@ -528,7 +591,7 @@ class AccountMoveLine(models.Model):
         return {
             "name": _("Turn as an asset"),
             "type": "ir.actions.act_window",
-            "res_model": "resource.asset",
+            "res_model": "account.depreciation.board",
             "views": [[False, "form"]],
             "target": "current",
             "context": ctx,
@@ -540,6 +603,7 @@ class AccountMoveLine(models.Model):
         "quantity",
         "move_id.line_ids.balance",
     )
+    @_debug.perf.timed
     def _compute_non_deductible_tax_value(self):
         non_deductible_tax_ids = self.tax_ids.invoice_repartition_line_ids.filtered(
             lambda line: line.repartition_type == "tax" and not line.use_in_tax_closing
@@ -572,6 +636,7 @@ class AccountMoveLine(models.Model):
             res = {
                 row["base_line_id"]: row["sum"] for row in self.env.cr.dictfetchall()
             }
+            _debug.perf.count("non_deductible_tax_read", lines=self, rows=len(res))
 
         for record in self:
             record.non_deductible_tax_value = res.get(record._origin.id, 0.0)

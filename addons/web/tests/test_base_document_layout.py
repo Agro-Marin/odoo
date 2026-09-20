@@ -21,7 +21,20 @@ class TestBaseDocumentLayoutHelpers(TransactionCase):
         self._set_templates_and_layouts()
         self._set_images()
 
+    def _write_layout(self, vals):
+        config_fields = self.company.report_config_id._fields
+        config_vals = {
+            k: v for k, v in vals.items() if k in config_fields and k != "company_id"
+        }
+        company_vals = {k: v for k, v in vals.items() if k not in config_vals}
+        if company_vals:
+            self.company.write(company_vals)
+        if config_vals:
+            self.company.report_config_id.write(config_vals)
+
     def assertColors(self, checked_obj, expected):
+        if getattr(expected, "_name", None) == "res.company":
+            expected = expected.report_config_id
         _expected_getter = (
             expected.get if isinstance(expected, dict) else partial(getattr, expected)
         )
@@ -121,11 +134,11 @@ class TestBaseDocumentLayoutHelpers(TransactionCase):
 @tagged("document_layout", "post_install", "-at_install", "web_unit", "web_layout")
 class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
     def test_company_no_color_change_logo(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": False,
                 "secondary_color": False,
-                "logo": False,
+                "image_1920": False,
                 "external_report_layout_id": self.env.ref("web.layout_template1").id,
                 "paperformat_id": self.env.ref("base.paperformat_us").id,
             }
@@ -134,65 +147,65 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         with Form(self.env["base.document.layout"]) as doc_layout:
             self.assertColors(doc_layout, default_colors)
             self.assertEqual(doc_layout.company_id, self.company)
-            doc_layout.logo = self.company_imgs["sweden"]["img"]
+            doc_layout.image_1920 = self.company_imgs["sweden"]["img"]
 
             self.assertColors(doc_layout, self.company_imgs["sweden"]["colors"])
 
-            doc_layout.logo = ""
+            doc_layout.image_1920 = ""
             self.assertColors(doc_layout, self.company_imgs["sweden"]["colors"])
-            self.assertEqual(doc_layout.logo, "")
+            self.assertEqual(doc_layout.image_1920, "")
 
     def test_company_no_color_but_logo_change_logo(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": "#ff0080",
                 "secondary_color": "#00ff00",
-                "logo": self.company_imgs["sweden"]["img"],
+                "image_1920": self.company_imgs["sweden"]["img"],
                 "paperformat_id": self.env.ref("base.paperformat_us").id,
             }
         )
 
         with Form(self.env["base.document.layout"]) as doc_layout:
             self.assertColors(doc_layout, self.company)
-            doc_layout.logo = self.company_imgs["odoo"]["img"]
+            doc_layout.image_1920 = self.company_imgs["odoo"]["img"]
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_change_logo(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": "#ff0080",
                 "secondary_color": "#00ff00",
-                "logo": False,
+                "image_1920": False,
                 "paperformat_id": self.env.ref("base.paperformat_us").id,
             }
         )
 
         with Form(self.env["base.document.layout"]) as doc_layout:
             self.assertColors(doc_layout, self.company)
-            doc_layout.logo = self.company_imgs["odoo"]["img"]
+            doc_layout.image_1920 = self.company_imgs["odoo"]["img"]
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_and_logo_change_logo(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": "#ff0080",
                 "secondary_color": "#00ff00",
-                "logo": self.company_imgs["sweden"]["img"],
+                "image_1920": self.company_imgs["sweden"]["img"],
                 "paperformat_id": self.env.ref("base.paperformat_us").id,
             }
         )
 
         with Form(self.env["base.document.layout"]) as doc_layout:
             self.assertColors(doc_layout, self.company)
-            doc_layout.logo = self.company_imgs["odoo"]["img"]
+            doc_layout.image_1920 = self.company_imgs["odoo"]["img"]
             self.assertColors(doc_layout, self.company_imgs["odoo"]["colors"])
 
     def test_company_colors_reset_colors(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": "#ff0080",
                 "secondary_color": "#00ff00",
-                "logo": self.company_imgs["sweden"]["img"],
+                "image_1920": self.company_imgs["sweden"]["img"],
                 "paperformat_id": self.env.ref("base.paperformat_us").id,
             }
         )
@@ -204,7 +217,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
             self.assertColors(doc_layout, self.company_imgs["sweden"]["colors"])
 
     def test_parse_company_colors_grayscale(self):
-        self.company.write(
+        self._write_layout(
             {
                 "primary_color": "#ff0080",
                 "secondary_color": "#00ff00",
@@ -214,7 +227,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         with Form(self.env["base.document.layout"]) as doc_layout:
             with Image.open(dir_path / "logo_ci.png", "r") as img:
                 base64_img = image_to_base64(img, "PNG")
-                doc_layout.logo = base64_img
+                doc_layout.image_1920 = base64_img
             self.assertNotEqual(None, doc_layout.primary_color)
 
     def test_company_details_blank_lines(self):
@@ -223,7 +236,7 @@ class TestBaseDocumentLayout(TestBaseDocumentLayoutHelpers):
         )
         self.assertNotIn("\n<br>\n", doc_layout_1.company_details)
 
-        self.company.write({"street2": "street_2_detail"})
+        self._write_layout({"street2": "street_2_detail"})
         doc_layout_2 = self.env["base.document.layout"].create(
             {"company_id": self.company.id}
         )

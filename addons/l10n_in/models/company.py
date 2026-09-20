@@ -1,11 +1,14 @@
-from stdnum.in_ import gstin, pan
-
 from odoo import Command, _, api, fields, models
 from odoo.exceptions import RedirectWarning
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
+    _inherits_sudo_fields = (
+        "l10n_in_pan_entity_id",
+        "l10n_in_tan",
+        "l10n_in_gst_state_warning",
+    )
 
     l10n_in_upi_id = fields.Char(string="UPI Id")
     l10n_in_hsn_code_digit = fields.Selection(
@@ -25,26 +28,9 @@ class ResCompany(models.Model):
         groups="base.group_system",
         help="Enable the use of production credentials",
     )
-    l10n_in_pan_entity_id = fields.Many2one(
-        related="partner_id.l10n_in_pan_entity_id",
-        string="PAN",
-        readonly=False,
-        help="PAN enables the department to link all transactions of the person with the department.\n"
-        "These transactions include taxpayments, TDS/TCS credits, returns of income/wealth/gift/FBT,"
-        "specified transactions, correspondence, and so on.\n"
-        "Thus, PAN acts as an identifier for the person with the tax department.",
-    )
     l10n_in_pan_type = fields.Selection(
         related="l10n_in_pan_entity_id.type",
         string="PAN Type",
-    )
-    l10n_in_tan = fields.Char(
-        related="partner_id.l10n_in_tan",
-        string="TAN",
-        readonly=False,
-    )
-    l10n_in_gst_state_warning = fields.Char(
-        related="partner_id.l10n_in_gst_state_warning"
     )
 
     # TDS/TCS settings
@@ -108,12 +94,12 @@ class ResCompany(models.Model):
                 ]
                 self._activate_l10n_in_taxes(gst_group_refs, company)
                 # Set sale and purchase tax accounts when user registered under GST.
-                company.account_sale_tax_id = (
+                company.account_config_id.account_sale_tax_id = (
                     self.env["account.chart.template"]
                     .with_company(company)
                     .ref("sgst_sale_5", raise_if_not_found=False)
                 )
-                company.account_purchase_tax_id = (
+                company.account_config_id.account_purchase_tax_id = (
                     self.env["account.chart.template"]
                     .with_company(company)
                     .ref("sgst_purchase_5", raise_if_not_found=False)
@@ -187,7 +173,7 @@ class ResCompany(models.Model):
 
     def _update_l10n_in_fiscal_position(self):
         companies_need_update_fp = self.filtered(
-            lambda c: c.parent_ids[0].chart_template == "in"
+            lambda c: c.parent_ids[0].account_config_id.chart_template == "in"
         )
         for company in companies_need_update_fp:
             ChartTemplate = self.env["account.chart.template"].with_company(company)
@@ -235,3 +221,4 @@ class ResCompany(models.Model):
             )
             action = self.env.ref("account.action_account_config")
             raise RedirectWarning(msg, action.id, _("Go to configuration"))
+        return None

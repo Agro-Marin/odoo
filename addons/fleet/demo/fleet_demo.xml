@@ -126,12 +126,12 @@
             <field name="resource_type">user</field>
             <field name="company_id" eval="False" />
         </record>
-        <record id="vehicle_1" model="resource.asset">
+        <record id="vehicle_1" model="resource.asset.vehicle">
             <field name="name">Micra 1-ACK-205</field>
             <field name="kind_id" ref="resource_asset.kind_vehicle" />
             <field name="product_id" ref="model_micra" />
             <field name="license_plate">1-ACK-205</field>
-            <field name="vin_sn">5454541</field>
+            <field name="vin_sn">1HGCM82633A545454</field>
             <field name="state">in_service</field>
             <field
                 name="date_acquisition"
@@ -144,12 +144,12 @@
             <field name="resource_type">user</field>
             <field name="company_id" eval="False" />
         </record>
-        <record id="vehicle_2" model="resource.asset">
+        <record id="vehicle_2" model="resource.asset.vehicle">
             <field name="name">Focus 1-SYN-404</field>
             <field name="kind_id" ref="resource_asset.kind_vehicle" />
             <field name="product_id" ref="model_focus" />
             <field name="license_plate">1-SYN-404</field>
-            <field name="vin_sn">1337</field>
+            <field name="vin_sn">1FTFW1ET5NKE01337</field>
             <field name="state">in_service</field>
             <field
                 name="date_acquisition"
@@ -164,12 +164,12 @@
             <field name="resource_type">user</field>
             <field name="company_id" eval="False" />
         </record>
-        <record id="vehicle_3" model="resource.asset">
+        <record id="vehicle_3" model="resource.asset.vehicle">
             <field name="name">Golf 1-BMW-001</field>
             <field name="kind_id" ref="resource_asset.kind_vehicle" />
             <field name="product_id" ref="model_golf_8" />
             <field name="license_plate">1-BMW-001</field>
-            <field name="vin_sn">666</field>
+            <field name="vin_sn">5YJ3E1EA8PF000666</field>
             <field name="state">in_service</field>
             <field
                 name="date_acquisition"
@@ -182,12 +182,12 @@
             <field name="resource_type">user</field>
             <field name="company_id" eval="False" />
         </record>
-        <record id="vehicle_4" model="resource.asset">
+        <record id="vehicle_4" model="resource.asset.vehicle">
             <field name="name">Clio 1-SBR-465</field>
             <field name="kind_id" ref="resource_asset.kind_vehicle" />
             <field name="product_id" ref="model_clio" />
             <field name="license_plate">1-SBR-465</field>
-            <field name="vin_sn">11235</field>
+            <field name="vin_sn">NM0GE9F76M1011235</field>
             <field name="state">in_service</field>
             <field
                 name="date_acquisition"
@@ -200,12 +200,12 @@
             <field name="resource_type">user</field>
             <field name="company_id" eval="False" />
         </record>
-        <record id="vehicle_5" model="resource.asset">
+        <record id="vehicle_5" model="resource.asset.vehicle">
             <field name="name">Corolla 1-SYN-405</field>
             <field name="kind_id" ref="resource_asset.kind_vehicle" />
             <field name="product_id" ref="model_corolla_ts" />
             <field name="license_plate">1-SYN-405</field>
-            <field name="vin_sn">8765</field>
+            <field name="vin_sn">1T05075EXLH208765</field>
             <field name="state">in_service</field>
             <field
                 name="date_acquisition"

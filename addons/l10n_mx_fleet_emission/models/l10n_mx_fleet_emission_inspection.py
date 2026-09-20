@@ -17,11 +17,10 @@ class L10nMxFleetEmissionInspection(models.Model):
     _rec_name = "display_name"
 
     asset_id = fields.Many2one(
-        comodel_name="resource.asset",
+        comodel_name="resource.asset.vehicle",
         string="Vehicle",
         index=True,
         required=True,
-        domain=[("is_vehicle", "=", True)],
         ondelete="cascade",
     )
     license_plate = fields.Char(related="asset_id.license_plate")
@@ -256,11 +255,8 @@ class L10nMxFleetEmissionInspection(models.Model):
         self, year: int, vehicles=None
     ) -> L10nMxFleetEmissionInspection:
         if vehicles is None:
-            vehicles = self.env["resource.asset"].search(
-                [
-                    ("is_vehicle", "=", True),
-                    ("l10n_mx_emission_calendar_id", "!=", False),
-                ]
+            vehicles = self.env["resource.asset.vehicle"].search(
+                [("l10n_mx_emission_calendar_id", "!=", False)]
             )
         else:
             vehicles = vehicles.filtered("l10n_mx_emission_calendar_id")

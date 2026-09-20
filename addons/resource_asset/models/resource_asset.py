@@ -31,6 +31,11 @@ class ResourceAsset(models.Model):
         "mixin.resource",
     ]
     _table_inheritance_root = "resource_asset"
+    _resource_type = "material"
+    # A write through the root reaches each row's concrete model, so a kind's
+    # hooks run whichever model the caller holds; every polymorphic reference
+    # those hooks record names the root (`_get_reference_model_name`).
+    _dispatch_write_to_concrete = True
     _order = "name, id"
     _check_company_auto = True
 
@@ -102,18 +107,23 @@ class ResourceAsset(models.Model):
         comodel_name="resource.asset.identifier",
         inverse_name="asset_id",
     )
+    # Accessors on the root: read and searched through the identifier rows,
+    # stored as columns only by the kinds that carry them.
     license_plate = AssetIdentifier(
         identifier_code="plate",
+        store=False,
         help="License plate number of the asset (eg plate number for a car)",
     )
     vin_sn = AssetIdentifier(
         identifier_code="vin",
         string="Serial Number / VIN",
+        store=False,
         help="Unique number written on an asset's chassis (VIN/SN number).",
     )
     engine_sn = AssetIdentifier(
         identifier_code="engine",
         string="Engine Serial Number",
+        store=False,
         help="Unique number written on the asset's engine.",
     )
     missing_identifier_type_ids = fields.Many2many(
@@ -218,6 +228,9 @@ class ResourceAsset(models.Model):
             if not meter:
                 meter = asset._create_odometer_meter()
             if meter.value > asset.odometer:
+                _debug.logic(
+                    "odometer.refused", reason="below_last_reading", asset=asset
+                )
                 raise ValidationError(
                     self.env._(
                         "%(asset)s: the odometer cannot go below its last reading of %(value)s.",
@@ -250,6 +263,7 @@ class ResourceAsset(models.Model):
             lambda asset: asset.odometer_meter_id.reading_ids
         )
         if with_readings:
+            _debug.logic("odometer_uom.refused", reason="readings_exist", assets=self)
             raise ValidationError(
                 self.env._(
                     "%(assets)s already carry odometer readings in their current "
@@ -304,6 +318,9 @@ class ResourceAsset(models.Model):
         for asset in enforced:
             missing = asset.missing_identifier_type_ids
             if missing:
+                _debug.logic(
+                    "asset.refused", reason="missing_required_identifiers", asset=asset
+                )
                 raise ValidationError(
                     self.env._(
                         "%(asset)s is a %(kind)s, which requires %(types)s.",
@@ -367,12 +384,16 @@ class ResourceAsset(models.Model):
     @api.constrains("parent_id")
     def _check_parent(self):
         if self._has_cycle():
+            _debug.logic("asset.refused", reason="parent_cycle", assets=self)
             raise ValidationError(self.env._("An asset cannot be a part of itself."))
 
     @api.constrains("state", "date_disposal")
     def _check_disposal(self):
         for asset in self:
             if asset.state == "disposed" and not asset.date_disposal:
+                _debug.logic(
+                    "asset.refused", reason="disposed_without_date", asset=asset
+                )
                 raise ValidationError(
                     self.env._(
                         "%(name)s: a disposed asset needs its disposal date.",
@@ -392,9 +413,11 @@ class ResourceAsset(models.Model):
 
     def _prepare_resource_values(self, vals, tz):
         resource_vals = super()._prepare_resource_values(vals, tz)
-        resource_vals["resource_type"] = "material"
         if self._around_the_clock(vals):
             resource_vals["calendar_id"] = False
+        # What the asset relays to its resource is born with the resource:
+        # popped here, it never reaches a related inverse run as the user.
+        resource_vals.update(self._pop_resource_vals(vals))
         return resource_vals
 
     @api.model_create_multi
@@ -404,17 +427,16 @@ class ResourceAsset(models.Model):
             if dispatched is not None:
                 return dispatched
         self._check_kind_belongs_to_this_model(vals_list)
-        Resource = self.env["resource.resource"].sudo()
         given = [dict(vals) for vals in vals_list]
         resource_vals_list = []
         for vals in vals_list:
             if vals.get("kind_id") and self._around_the_clock(vals):
                 vals["resource_calendar_id"] = False
-            if not vals.get("resource_id"):
-                vals["resource_id"] = Resource.create(
-                    self._prepare_resource_values(vals, vals.pop("tz", False))
-                ).id
-            resource_vals_list.append(self._pop_resource_vals(vals))
+            # A new resource takes these at birth (_prepare_resource_values);
+            # one given ready-made is written as the system after the create.
+            resource_vals_list.append(
+                self._pop_resource_vals(vals) if vals.get("resource_id") else {}
+            )
         assets = super().create(vals_list)
         for asset, resource_vals, vals in zip(
             assets, resource_vals_list, given, strict=True
@@ -435,7 +457,7 @@ class ResourceAsset(models.Model):
 
     def _write_concrete(self, vals):
         if "kind_id" in vals:
-            self._check_kind_belongs_to_this_model([vals])
+            self._check_kind_stays_in_this_table(vals["kind_id"])
         if "state" in vals:
             self._check_transition(vals["state"])
         if "odometer_uom_id" in vals:
@@ -579,6 +601,7 @@ class ResourceAsset(models.Model):
         self._transition("disposed", date=date)
 
     def _transition(self, state, date=None):
+        _debug.lifecycle("transition", assets=self, state=state, date=date)
         vals = {"state": state}
         if state == "disposed":
             vals.update(
@@ -624,6 +647,95 @@ class ResourceAsset(models.Model):
                 created[index] = record.id
         return self.browse(created[index] for index in range(len(vals_list)))
 
+    def _check_kind_stays_in_this_table(self, kind_id) -> None:
+        kind = self.env["resource.asset.kind"].browse(kind_id)
+        target = self._get_model_for_kind(kind)
+        for model_name in self._get_model_names_concrete().values():
+            if model_name != target:
+                _debug.logic("write.refused", reason="kind_changes_table", assets=self)
+                raise ValidationError(
+                    self.env._(
+                        "An asset of kind %(kind)s is a %(model)s, and no row moves "
+                        "between the two tables. Create it there instead.",
+                        kind=kind.display_name,
+                        model=target,
+                    )
+                )
+
+    def _retype(self, kind):
+        """Deliberately make these assets a kind of another model. A kind
+        names a table, and this is the one door through which a row changes
+        table: parent to child is a DELETE and an INSERT, which the shared
+        sequence and the absence of foreign keys into the root allow. A column
+        only the source model declares does not travel; a stored compute only
+        the target declares is computed afresh."""
+        target = self._get_model_for_kind(kind)
+        by_source = defaultdict(list)
+        for record_id, model_name in self._get_model_names_concrete().items():
+            if model_name != target:
+                by_source[model_name].append(record_id)
+        _debug.lifecycle(
+            "retype",
+            assets=self,
+            target=target,
+            moving={source: len(ids) for source, ids in by_source.items()},
+        )
+        if by_source:
+            self.env.flush_all()
+            Target = self.env[target]
+            for source, ids in by_source.items():
+                source_table = self.env[source]._table
+                columns = self._get_columns_shared(source_table, Target._table)
+                self.env.cr.execute(
+                    SQL(
+                        """
+                        WITH moved AS (
+                            DELETE FROM ONLY %(source)s WHERE id = ANY(%(ids)s) RETURNING *
+                        )
+                        INSERT INTO %(target)s (%(columns)s) SELECT %(columns)s FROM moved
+                        """,
+                        source=SQL.identifier(source_table),
+                        target=SQL.identifier(Target._table),
+                        ids=ids,
+                        columns=SQL(", ").join(SQL.identifier(c) for c in columns),
+                    )
+                )
+                _debug.lifecycle(
+                    "resource_asset.rows_retyped",
+                    source=source,
+                    target=target,
+                    rows=len(ids),
+                )
+            self.env.registry.clear_cache("default")
+            self.env.invalidate_all()
+            moved = Target.browse(
+                [record_id for ids in by_source.values() for record_id in ids]
+            )
+            root_fields = self.env[self._get_root_model_name()]._fields
+            for name, field in Target._fields.items():
+                root_field = root_fields.get(name)
+                stored_by_root = root_field is not None and root_field.store
+                if field.store and field.compute and not stored_by_root:
+                    field.compute_value(moved)
+            self.env.flush_all()
+        self.with_context(active_test=False).write({"kind_id": kind.id})
+        return self.browse(self.ids)
+
+    @api.model
+    def _get_columns_shared(self, source_table, target_table) -> list[str]:
+        self.env.cr.execute(
+            """
+            SELECT a.column_name
+              FROM information_schema.columns a
+              JOIN information_schema.columns b
+                ON b.column_name = a.column_name AND b.table_name = %s
+             WHERE a.table_name = %s
+             ORDER BY a.ordinal_position
+            """,
+            [target_table, source_table],
+        )
+        return [row[0] for row in self.env.cr.fetchall()]
+
     def _check_kind_belongs_to_this_model(self, vals_list) -> None:
         Kind = self.env["resource.asset.kind"]
         for vals in vals_list:
@@ -632,6 +744,9 @@ class ResourceAsset(models.Model):
                 continue
             model_name = self._get_model_for_kind(kind)
             if model_name != self._name:
+                _debug.logic(
+                    "create.refused", reason="kind_of_another_model", model=self._name
+                )
                 raise ValidationError(
                     self.env._(
                         "An asset of kind %(kind)s is a %(model)s, and no row "

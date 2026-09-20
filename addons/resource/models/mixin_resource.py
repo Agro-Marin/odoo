@@ -11,12 +11,23 @@ if TYPE_CHECKING:
 
 
 class MixinResource(models.AbstractModel):
+    """One record of the host model is one resource.
+
+    `_resource_type` says what kind of slot the host is. `_resource_owns` says
+    whether the host owns its resource: an owner creates it, copies it and
+    carries its identity; a host that does not own references a resource
+    somebody else answers for, gets a bare one only when given none, and takes
+    a fresh one when copied.
+    """
+
     _name = "mixin.resource"
     _description = "Resource Mixin"
+    _resource_type = "user"
+    _resource_owns = True
 
     resource_id = fields.Many2one(
         comodel_name="resource.resource",
-        index=True,
+        index="unique",
         required=True,
         ondelete="restrict",
         bypass_search_access=True,
@@ -46,6 +57,9 @@ class MixinResource(models.AbstractModel):
 
     @api.model_create_multi
     def create(self, vals_list: list[ValuesType]) -> Self:
+        # The slot is created and written as the system: whoever may create
+        # the owner may give it its resource.
+        Resource = self.env["resource.resource"].sudo()
         resources_vals_list = []
         for vals in vals_list:
             if not vals.get("resource_id"):
@@ -53,7 +67,7 @@ class MixinResource(models.AbstractModel):
                     self._prepare_resource_values(vals, vals.pop("tz", False))
                 )
         if resources_vals_list:
-            resources = self.env["resource.resource"].create(resources_vals_list)
+            resources = Resource.create(resources_vals_list)
             resources_iter = iter(resources.ids)
             for vals in vals_list:
                 if not vals.get("resource_id"):
@@ -68,9 +82,9 @@ class MixinResource(models.AbstractModel):
         if attached:
             resources_by_id = {
                 resource.id: resource
-                for resource in self.env["resource.resource"]
-                .browse([vals["resource_id"] for vals in attached])
-                .exists()
+                for resource in Resource.browse(
+                    [vals["resource_id"] for vals in attached]
+                ).exists()
             }
             for vals in attached:
                 resource = resources_by_id.get(vals["resource_id"])
@@ -91,6 +105,10 @@ class MixinResource(models.AbstractModel):
             resource_default["company_id"] = default["company_id"]
         if "resource_calendar_id" in default:
             resource_default["calendar_id"] = default["resource_calendar_id"]
+        if not self._resource_owns:
+            for vals in vals_list:
+                vals.pop("resource_id", None)
+            return vals_list
         resources = [record.resource_id for record in self]
         resources_to_copy = self.env["resource.resource"].concat(*resources)
         new_resources = resources_to_copy.copy(resource_default)
@@ -286,7 +304,10 @@ class MixinResource(models.AbstractModel):
         return result
 
     def _prepare_resource_values(self, vals: ValuesType, tz: str | bool) -> ValuesType:
-        resource_vals = {"name": vals.get(self._rec_name)}
+        resource_vals = {
+            "name": vals.get(self._rec_name),
+            "resource_type": self._resource_type,
+        }
         if tz:
             resource_vals["tz"] = tz
         company_id = vals.get("company_id", self.env.company.id)

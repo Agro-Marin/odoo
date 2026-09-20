@@ -1,16 +1,14 @@
-from odoo import fields, models
+from odoo import models
 
 
 class ResCompany(models.Model):
     _inherit = "res.company"
-
-    l10n_cl_activity_description = fields.Char(
-        related="partner_id.l10n_cl_activity_description",
-        string="Company Activity Description",
-        readonly=False,
-    )
+    _inherits_sudo_fields = ("l10n_cl_activity_description",)
 
     def _localization_use_documents(self):
         """Chilean localization use documents"""
         self.check_singleton()
-        return self.chart_template == "cl" or super()._localization_use_documents()
+        return (
+            self.account_config_id.chart_template == "cl"
+            or super()._localization_use_documents()
+        )

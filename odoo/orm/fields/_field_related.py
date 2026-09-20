@@ -50,12 +50,25 @@ def setup_related(field: Field, model: BaseModel) -> None:
     field._related_field_seq = tuple(field_seq)
     related_field = field_seq[-1]
 
-    if field.type != related_field.type:
+    # A one2one reads as one record, so a many2one may end on it.
+    reads_one = field.is_many2one and related_field.is_one2one
+    if reads_one:
+        _debug.logic(
+            "field.related.many2one_over_one2one",
+            model=field.model_name,
+            field=field.name,
+            target=str(related_field),
+        )
+    if field.type != related_field.type and not reads_one:
         raise TypeError(
             f"Type of related field {field} is inconsistent with {related_field}"
         )
 
     field.related_field = related_field
+    if field.inherited and field.fetched_with_row and not field.manual:
+        # decided before the target was known: a delegated column travels
+        # with the row like a stored one
+        field.prefetch = True
 
     model.pool.field_setup_dependents.add(related_field, field)
 

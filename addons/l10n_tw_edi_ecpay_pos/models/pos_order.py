@@ -46,7 +46,10 @@ class PoSOrder(models.Model):
             )
 
         source_order = self[0]
-        if source_order.company_id.account_fiscal_country_id.code == "TW":
+        if (
+            source_order.company_id.account_config_id.account_fiscal_country_id.code
+            == "TW"
+        ):
             if len(self) > 1 and any(
                 order.config_id.is_ecpay_enabled for order in self
             ):
@@ -154,7 +157,7 @@ class PoSOrder(models.Model):
                 "pos_barcode": response_data.get("PosBarCode"),
                 "qrcode_left": response_data.get("QRCode_Left"),
                 "qrcode_right": response_data.get("QRCode_Right"),
-                "company_logo_exist": bool(self.company_id.logo),
+                "company_logo_exist": bool(self.company_id.image_1920),
             }
         )
         return json_response
